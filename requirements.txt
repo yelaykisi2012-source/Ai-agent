@@ -1,0 +1,24 @@
+# Runtime dependencies.
+# Versions pinned to the set verified on Windows 11 + Python 3.14.5.
+fastapi==0.163.1
+uvicorn[standard]==0.54.0
+pydantic==2.14.3
+pydantic-settings==2.16.3
+SQLAlchemy==2.1.8
+# Windows has no system IANA timezone database; zoneinfo needs this package.
+tzdata==2026.6
+# Official OpenAI SDK (chat, tool calling, speech-to-text, text-to-speech).
+openai==3.51.0
+
+# Tasks, reminders and Telegram user-account integration.
+APScheduler==3.11.3
+Telethon==1.45.0
+python-multipart==0.0.33
+
+# Native Telegram call transport (WebRTC). Installed for diagnostics and the
+# documented call path; live audio stays disabled until verified on the machine.
+ntgcalls==3.0.7
+
+# Test tooling (also used for browser-free HTTP checks of the API).
+pytest==9.2.0
+httpx==0.28.1

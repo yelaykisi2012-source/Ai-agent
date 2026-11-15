@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>KSENUS AI</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="dot" id="status-dot"></span>
+      <h1>KSENUS <span>AI</span></h1>
+    </div>
+    <div class="topbar-actions">
+      <span class="pill" id="paused-pill">checking…</span>
+      <button id="stop-button" class="danger" type="button">Emergency stop</button>
+      <button id="resume-button" class="ghost" type="button">Resume</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="grid cards">
+      <article class="card">
+        <h2>Agent</h2>
+        <div class="value" id="agent-state">—</div>
+        <p class="muted" id="agent-detail">Telegram, OpenAI and scheduler at a glance.</p>
+      </article>
+      <article class="card">
+        <h2>Tasks pending</h2>
+        <div class="value" id="tasks-pending">—</div>
+        <p class="muted" id="tasks-total">—</p>
+      </article>
+      <article class="card">
+        <h2>Reminders</h2>
+        <div class="value" id="reminders-pending">—</div>
+        <p class="muted">Scheduled and waiting</p>
+      </article>
+      <article class="card">
+        <h2>Memories</h2>
+        <div class="value" id="memory-total">—</div>
+        <p class="muted" id="conversations-total">—</p>
+      </article>
+    </section>
+
+    <section class="grid two">
+      <article class="card">
+        <h2>Talk to Ksenus</h2>
+        <form id="chat-form" class="chat-form">
+          <textarea id="chat-input" rows="3" placeholder="Ertaga soat 8 da meni uyg'ot…"></textarea>
+          <div class="row">
+            <button type="submit">Send</button>
+            <span class="muted" id="chat-status"></span>
+          </div>
+        </form>
+        <div id="chat-log" class="chat-log" aria-live="polite"></div>
+        <div id="confirmation" class="confirmation hidden">
+          <p id="confirmation-text"></p>
+          <button id="confirm-button" type="button">Approve action</button>
+        </div>
+      </article>
+
+      <article class="card">
+        <h2>Upcoming</h2>
+        <ul id="task-list" class="list"></ul>
+      </article>
+    </section>
+
+    <section class="grid two">
+      <article class="card">
+        <h2>Recent activity</h2>
+        <ul id="activity-list" class="list feed"></ul>
+      </article>
+      <article class="card">
+        <h2>Calls</h2>
+        <ul id="call-list" class="list"></ul>
+        <p class="muted">
+          Live call audio requires the native transport to be verified with two
+          authorized Telegram accounts. Until then, calls are declined and recorded.
+        </p>
+      </article>
+    </section>
+
+    <section class="card">
+      <h2>Services</h2>
+      <div id="service-grid" class="services"></div>
+    </section>
+  </main>
+
+  <footer class="muted">
+    Local-only dashboard. Session strings and API keys are never sent to this page.
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
