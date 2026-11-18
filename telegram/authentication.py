@@ -22,6 +22,7 @@ import sys
 from config import Settings, get_settings
 from database import init_database
 from logging_setup import configure_logging
+from telegram.account import maybe_await
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +84,7 @@ async def login(settings: Settings) -> int:
         )
         return 0
     finally:
-        await client.disconnect()
+        await maybe_await(client.disconnect())
 
 
 async def _persist_owner(settings: Settings, owner_id: int | None) -> None:
@@ -100,6 +101,8 @@ async def status(settings: Settings) -> int:
     if not settings.telegram_configured:
         print("Telegram is not configured (missing api_id/api_hash).")
         return 2
+    session_file = settings.telegram_session_file.with_suffix(".session")
+    print(f"session file: {'present' if session_file.is_file() else 'absent'}")
     client = _client(settings)
     await client.connect()
     try:
@@ -111,7 +114,7 @@ async def status(settings: Settings) -> int:
             print(f"account: {getattr(me, 'first_name', '')} (id={getattr(me, 'id', '?')})")
         return 0 if authorized else 1
     finally:
-        await client.disconnect()
+        await maybe_await(client.disconnect())
 
 
 async def logout(settings: Settings) -> int:
@@ -127,7 +130,7 @@ async def logout(settings: Settings) -> int:
         else:
             print("No authorized session was present.")
     finally:
-        await client.disconnect()
+        await maybe_await(client.disconnect())
     session_file = settings.telegram_session_file.with_suffix(".session")
     if session_file.exists():
         session_file.unlink()

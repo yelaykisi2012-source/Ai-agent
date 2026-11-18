@@ -19,6 +19,13 @@ python-multipart==0.0.33
 # documented call path; live audio stays disabled until verified on the machine.
 ntgcalls==3.0.7
 
+# Keyless TTS fallback (Microsoft Edge neural voices). No account, no API key;
+# used when the primary TTS provider answers HTTP 429.
+edge-tts==7.3.1
+
+# Excel workbooks for items the user asks to receive in Telegram.
+openpyxl==3.1.5
+
 # Test tooling (also used for browser-free HTTP checks of the API).
 pytest==9.2.0
 httpx==0.28.1

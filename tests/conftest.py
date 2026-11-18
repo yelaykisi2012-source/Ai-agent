@@ -29,6 +29,9 @@ def settings(tmp_path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Settings]:
     db_file = tmp_path / "agent-test.db"
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{db_file.as_posix()}")
     monkeypatch.setenv("LOG_LEVEL", "WARNING")
+    # Tests must never write into the production logs/agent.log: that file is
+    # how the owner diagnoses real calls, and test noise ruins it.
+    monkeypatch.setenv("LOG_DIR", str(tmp_path / "logs"))
     monkeypatch.setenv("ENVIRONMENT", "development")
     monkeypatch.setenv("CHAT_CONTEXT_MESSAGES", "20")
     monkeypatch.setenv("CHAT_RATE_LIMIT_PER_MINUTE", "100")
@@ -49,6 +52,7 @@ def settings(tmp_path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Settings]:
         "TELEGRAM_API_HASH",
         "TELEGRAM_PHONE",
         "TELEGRAM_OWNER_USER_ID",
+        "OPENROUTER_API_KEY",
     ):
         monkeypatch.delenv(name, raising=False)
 

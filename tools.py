@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import memory
@@ -34,6 +34,8 @@ class ToolContext:
     reminders: ReminderService
     sleep: SleepMonitor
     calls: CallManager
+    #: Owner-only Telegram delivery (text, code, tables, files).
+    delivery: Any = None
 
 
 def _parse_datetime(value: str | None) -> datetime | None:
@@ -134,6 +136,32 @@ async def _cancel_reminder(context: ToolContext, arguments: dict[str, Any]) -> s
     return f"Reminder #{reminder_id} cancelled."
 
 
+async def _schedule_call(context: ToolContext, arguments: dict[str, Any]) -> str:
+    """Create a reminder that dials the owner instead of sending text."""
+    now = datetime.now(context.settings.tzinfo)
+    raw_minutes = arguments.get("minutes")
+    minutes = raw_minutes if isinstance(raw_minutes, int) and 1 <= raw_minutes <= 720 else None
+    at = _parse_datetime(arguments.get("at"))
+    if minutes is not None:
+        when = now + timedelta(minutes=minutes)
+    elif at is not None:
+        when = at
+    else:
+        return (
+            "A scheduled call needs minutes (1-720) or an ISO-8601 at time. "
+            "Nothing was scheduled."
+        )
+    if when <= now:
+        return "That time is already in the past; nothing was scheduled."
+    reason = str(arguments.get("reason") or "").strip()
+    label = reason or (f"Qo‘ng‘iroq ({minutes} daqiqadan keyin)" if minutes else "Qo‘ng‘iroq")
+    reminder = context.reminders.create(label, when, kind="call")
+    return (
+        f"Call scheduled for {when.isoformat(timespec='minutes')} "
+        f"(reminder #{reminder.id})."
+    )
+
+
 async def _save_memory(context: ToolContext, arguments: dict[str, Any]) -> str:
     content = str(arguments.get("content") or "").strip()
     if not content:
@@ -161,7 +189,7 @@ async def _retrieve_memory(context: ToolContext, arguments: dict[str, Any]) -> s
 
 async def _initiate_call(context: ToolContext, arguments: dict[str, Any]) -> str:
     reason = str(arguments.get("reason") or "a reminder").strip()
-    started, detail = await context.calls.initiate(reason)
+    started, detail = await context.calls.place(reason)
     return detail
 
 
@@ -182,14 +210,34 @@ async def _start_sleep_check(context: ToolContext, arguments: dict[str, Any]) ->
 
 
 async def _answer_call(context: ToolContext, arguments: dict[str, Any]) -> str:
-    return (
-        "Incoming Telegram calls cannot be answered yet: live call audio is not "
-        "enabled. I can only decline them and message you instead."
-    )
+    _answered, detail = await context.calls.answer()
+    return detail
 
 
 async def _end_call(context: ToolContext, arguments: dict[str, Any]) -> str:
-    return "There is no active call to end; live Telegram calls are not enabled."
+    _ended, detail = await context.calls.hangup("owner_hangup")
+    return detail
+
+
+async def _send_to_telegram(context: ToolContext, arguments: dict[str, Any]) -> str:
+    """Send prepared material to the owner's own private chat only."""
+    delivery = context.delivery
+    if delivery is None:
+        return "Sending to Telegram is not available right now; nothing was sent."
+    rows = arguments.get("rows")
+    if rows is not None and (
+        not isinstance(rows, list) or not all(isinstance(row, list) for row in rows)
+    ):
+        return "Not sent: rows must be a list of rows."
+    result = await delivery.send(
+        kind=str(arguments.get("kind") or "text"),
+        content=str(arguments.get("content") or ""),
+        rows=rows,
+        filename=arguments.get("filename"),
+        table_format=str(arguments.get("table_format") or "xlsx"),
+        caption=arguments.get("caption"),
+    )
+    return result.detail
 
 
 def _spec(
@@ -296,6 +344,28 @@ def build_tool_registry(context: ToolContext) -> ToolRegistry:
             lambda args: _cancel_reminder(context, args),
         ),
         _spec(
+            "schedule_call",
+            "Schedule a Telegram call to the owner at a later time. Use it when the "
+            "owner says something like \"menga 3 daqiqadan keyin qo‘ng‘iroq qil\" or "
+            "\"keyinroq qo‘ng‘iroq qil\". No confirmation is needed: the owner asked "
+            "for the call themselves.",
+            {
+                "type": "object",
+                "properties": {
+                    "minutes": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 720,
+                        "description": "Minutes from now.",
+                    },
+                    "at": {"type": "string", "description": "ISO 8601 timestamp."},
+                    "reason": {"type": "string"},
+                },
+                "additionalProperties": False,
+            },
+            lambda args: _schedule_call(context, args),
+        ),
+        _spec(
             "save_memory",
             "Save a durable preference, instruction or personal detail.",
             {
@@ -358,6 +428,44 @@ def build_tool_registry(context: ToolContext) -> ToolRegistry:
             {"type": "object", "properties": {}, "additionalProperties": False},
             lambda args: _end_call(context, args),
             requires_confirmation=True,
+        ),
+        _spec(
+            "send_to_my_telegram",
+            "Send text, code, a table or a file to the owner's OWN private Telegram "
+            "chat. Use it whenever the user asks to send something to their Telegram "
+            "(\"menga Telegramdan yubor\", \"lichkamga tashla\"). There is no option to "
+            "send to another person: only the owner's chat exists.",
+            {
+                "type": "object",
+                "properties": {
+                    "kind": {
+                        "type": "string",
+                        "enum": ["text", "code", "table", "file"],
+                        "description": "text = chat message, code = .py file, "
+                        "table = spreadsheet, file = text file with a filename.",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "The complete material itself (the whole code, "
+                        "the whole text), not a summary and not the user's request. "
+                        "Never include API keys, passwords or tokens.",
+                    },
+                    "rows": {
+                        "type": "array",
+                        "items": {"type": "array", "items": {"type": "string"}},
+                        "description": "Table rows (first row is the header).",
+                    },
+                    "filename": {
+                        "type": "string",
+                        "description": "Human-readable file name without a path.",
+                    },
+                    "table_format": {"type": "string", "enum": ["xlsx", "csv"]},
+                    "caption": {"type": "string"},
+                },
+                "required": ["kind"],
+                "additionalProperties": False,
+            },
+            lambda args: _send_to_telegram(context, args),
         ),
     ]
 

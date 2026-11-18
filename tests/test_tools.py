@@ -93,3 +93,51 @@ def test_invalid_task_arguments_do_not_crash(settings: Settings) -> None:
 
     missing = asyncio.run(runtime.brain.tools.execute("complete_task", {}))
     assert "numeric task id" in missing.detail.lower()
+
+
+def test_schedule_call_stores_a_call_reminder(settings) -> None:
+    from datetime import datetime, timedelta
+    from types import SimpleNamespace
+
+    import asyncio
+
+    from tools import _schedule_call
+
+    created: list[tuple[str, datetime, str]] = []
+
+    class _Reminders:
+        def create(self, message, when, *, kind="reminder"):
+            created.append((message, when, kind))
+            return SimpleNamespace(id=7)
+
+    context = SimpleNamespace(settings=settings, reminders=_Reminders())
+    now = datetime.now(settings.tzinfo)
+
+    detail = asyncio.run(_schedule_call(context, {"minutes": 3}))
+
+    assert "Call scheduled" in detail and "#7" in detail
+    _message, when, kind = created[0]
+    assert kind == "call"
+    assert timedelta(minutes=2) < when - now <= timedelta(minutes=4)
+
+
+def test_schedule_call_refuses_a_past_time(settings) -> None:
+    from types import SimpleNamespace
+    import asyncio
+
+    from tools import _schedule_call
+
+    created: list[object] = []
+
+    class _Reminders:
+        def create(self, *args, **kwargs):
+            created.append(args)
+            return SimpleNamespace(id=1)
+
+    context = SimpleNamespace(settings=settings, reminders=_Reminders())
+    detail = asyncio.run(
+        _schedule_call(context, {"at": "2020-01-01T09:00:00+05:00"})
+    )
+
+    assert "past" in detail
+    assert created == []

@@ -27,6 +27,7 @@ def build_async_client(settings: Settings) -> AsyncOpenAI | None:
         return None
     return AsyncOpenAI(
         api_key=key,
+        base_url=settings.openai_base_url,
         timeout=settings.openai_timeout_seconds,
         max_retries=0,
     )

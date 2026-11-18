@@ -2,9 +2,9 @@
 
 Telegram's one-to-one calls are end-to-end encrypted and negotiated through
 `phone.*` methods plus `updatePhoneCall` updates. Telethon can carry that
-signaling but not the media; media needs a WebRTC transport (ntgcalls). This
-module therefore handles *signaling* only: identify call state changes, record
-them, and decline calls we cannot carry audio for.
+signaling but not the media; media needs the WebRTC transport in
+``telegram.media``. This module classifies call updates and builds the
+discard requests used when a call cannot be carried.
 
 Nothing here pretends to answer a call that has no audio path.
 """
@@ -77,7 +77,11 @@ def classify_call_update(update: object) -> CallEvent | None:
     access_hash = getattr(call, "access_hash", None)
 
     # A requested call is incoming when we are the participant, not the admin.
-    direction = "incoming" if state in {"ringing", "waiting"} and admin_id != participant_id else "outgoing"
+    direction = (
+        "incoming"
+        if state in {"ringing", "waiting"} and admin_id != participant_id
+        else "outgoing"
+    )
 
     return CallEvent(
         call_id=int(call_id),
@@ -91,36 +95,40 @@ def classify_call_update(update: object) -> CallEvent | None:
     )
 
 
-def build_decline_request(peer_id: int, duration: int = 0):
-    """Build a ``phone.discardCall`` request using the installed Telethon layer.
+def build_decline_request(
+    call_id: int,
+    access_hash: int,
+    duration: int = 0,
+    *,
+    busy: bool = False,
+):
+    """Build a ``phone.discardCall`` request for one call.
 
-    The discard reason constructor is selected from what the current layer
-    actually provides rather than hard-coding a name that may not exist.
+    ``discardCall`` takes an ``InputPhoneCall`` (the call id plus its access
+    hash), not a bare user id; passing a user id is rejected by Telegram.
     """
     from telethon.tl import functions, types
 
-    reason_classes = [
-        getattr(types, name, None)
-        for name in ("PhoneCallDiscardReasonMissed", "PhoneCallDiscardReasonDisconnect")
-    ]
-    reason_class = next((cls for cls in reason_classes if cls is not None), None)
-    reason = reason_class() if reason_class is not None else None
-
+    reason_class = (
+        types.PhoneCallDiscardReasonBusy if busy else types.PhoneCallDiscardReasonMissed
+    )
+    peer = types.InputPhoneCall(id=int(call_id), access_hash=int(access_hash))
     return functions.phone.DiscardCallRequest(
-        peer=peer_id,
+        peer=peer,
         duration=duration,
-        reason=reason,
+        reason=reason_class(),
         connection_id=0,
+        video=False,
     )
 
 
-async def decline_call(client: object, event: CallEvent) -> bool:
+async def decline_call(client: object, event: CallEvent, *, busy: bool = False) -> bool:
     """Decline an incoming call through MTProto. Returns success."""
-    if event.peer_id is None:
-        logger.warning("Cannot decline call %s: no peer id", event.call_id)
+    if event.access_hash is None:
+        logger.warning("Cannot decline call %s: no access hash", event.call_id)
         return False
     try:
-        request = build_decline_request(event.peer_id)
+        request = build_decline_request(event.call_id, event.access_hash, busy=busy)
         await client(request)  # type: ignore[operator]
         return True
     except Exception:  # noqa: BLE001 - remote failures must not crash the client

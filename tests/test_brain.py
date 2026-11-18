@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 
 import pytest
+from pydantic import SecretStr
 
 from brain import (
     AgentBrain,
@@ -198,3 +200,81 @@ def test_tool_round_limit_stops_runaway_model(settings: Settings) -> None:
     )
     with pytest.raises(BrainUnavailable):
         asyncio.run(brain.reply(history=[], user_message="loop"))
+
+
+# --------------------------------------------------------------------------- #
+# OpenRouter provider
+# --------------------------------------------------------------------------- #
+def _openrouter_settings(**overrides: object) -> Settings:
+    values: dict[str, object] = {
+        "_env_file": None,
+        "llm_provider": "openrouter",
+        "openrouter_api_key": "sk-or-v1-unit-test",
+    }
+    values.update(overrides)
+    return Settings(**values)  # type: ignore[arg-type]
+
+
+def test_openrouter_client_uses_its_own_base_url_key_and_model() -> None:
+    settings = _openrouter_settings(openrouter_model="google/gemma-4-31b-it:free")
+    brain = AgentBrain(settings)
+    client = brain._ensure_client()
+
+    assert str(client.base_url).rstrip("/") == "https://openrouter.ai/api/v1"
+    assert client.api_key == "sk-or-v1-unit-test"
+    assert brain.model == "google/gemma-4-31b-it:free"
+
+
+def test_openrouter_falls_back_to_the_openai_provider() -> None:
+    settings = _openrouter_settings(
+        openrouter_model="openrouter/free",
+        openai_api_key="unit-openai-key",
+        openai_model="gpt-fallback",
+    )
+    primary = FakeOpenAI([auth_error()])
+    fallback = FakeOpenAI([text_completion("fallback answer")])
+    brain = AgentBrain(settings, client=primary, fallback_client=fallback)
+
+    reply = asyncio.run(brain.reply(history=[], user_message="hi"))
+
+    assert reply.text == "fallback answer"
+    assert primary.requests[0]["model"] == "openrouter/free"
+    assert fallback.requests[0]["model"] == "gpt-fallback"
+    assert len(primary.requests) == 1
+    assert len(fallback.requests) == 1
+
+
+def test_openrouter_failure_without_a_fallback_key_is_reported() -> None:
+    brain = AgentBrain(
+        _openrouter_settings(openai_api_key=None),
+        client=FakeOpenAI([auth_error()]),
+    )
+    with pytest.raises(BrainNotConfigured):
+        asyncio.run(brain.reply(history=[], user_message="hi"))
+
+
+def test_openai_provider_has_no_fallback_client(settings: Settings) -> None:
+    brain = AgentBrain(settings.model_copy(update={"openai_api_key": SecretStr("k")}))
+    assert brain._ensure_fallback_client() is None
+
+
+def test_missing_openrouter_key_names_the_variable(settings: Settings) -> None:
+    settings = settings.model_copy(
+        update={"llm_provider": "openrouter", "openrouter_api_key": None}
+    )
+    brain = AgentBrain(settings)
+    with pytest.raises(BrainNotConfigured) as excinfo:
+        asyncio.run(brain.reply(history=[], user_message="hi"))
+    assert "OPENROUTER_API_KEY" in str(excinfo.value)
+
+
+def test_openrouter_key_is_never_logged(caplog) -> None:
+    key = "sk-or-v1-" + "a" * 32
+    settings = _openrouter_settings(openrouter_api_key=key, openai_api_key=None)
+    brain = AgentBrain(settings, client=FakeOpenAI([auth_error()]))
+
+    with caplog.at_level(logging.DEBUG):
+        with pytest.raises(BrainNotConfigured):
+            asyncio.run(brain.reply(history=[], user_message="hi"))
+
+    assert key not in caplog.text

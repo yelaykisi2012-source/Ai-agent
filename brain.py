@@ -38,7 +38,9 @@ from openai import (
 )
 
 from config import Settings
-from system_prompt import build_system_prompt
+from privacy import redact
+from system_prompt import GUEST_RULES, build_system_prompt, voice_rules
+from voice.uzbek import language_report
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +49,14 @@ STATUS_OK = "ok"
 STATUS_UNAVAILABLE = "unavailable"
 STATUS_CONFIRMATION_REQUIRED = "confirmation_required"
 STATUS_ERROR = "error"
+
+#: One corrective request, used only when a spoken answer came back in another
+#: language. It is in Uzbek so the model sees the target language, not a
+#: description of it.
+_UZBEK_REWRITE_REQUEST = (
+    "Bu javobni tabiiy, sodda o‘zbek tilida qayta yoz. Faqat o‘zbekcha matnni "
+    "qaytar: izoh, tarjima yoki boshqa tildagi so‘z qo‘shma."
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -349,19 +359,22 @@ class AgentBrain:
         settings: Settings,
         *,
         client: Any | None = None,
+        fallback_client: Any | None = None,
         registry: ToolRegistry | None = None,
         system_prompt: str | None = None,
     ) -> None:
         self._settings = settings
         self._client = client
         self._client_injected = client is not None
+        self._fallback_client = fallback_client
+        self._fallback_client_injected = fallback_client is not None
         self.tools = registry or default_tool_registry()
         self._system_prompt = system_prompt or build_system_prompt(settings)
 
     # -- public ----------------------------------------------------------- #
     @property
     def model(self) -> str:
-        return self._settings.openai_model
+        return self._settings.chat_model
 
     def set_tool_registry(self, registry: ToolRegistry) -> None:
         """Replace the tool registry (used when services are wired at startup)."""
@@ -376,16 +389,44 @@ class AgentBrain:
         *,
         history: Sequence[Mapping[str, Any]],
         user_message: str,
+        voice_mode: bool = False,
+        guest: bool = False,
     ) -> BrainReply:
-        """Produce a reply, executing tool calls when the model requests them."""
-        messages = self._build_messages(history, user_message)
-        tools = self.tools.model_tools()
+        """Produce a reply, executing tool calls when the model requests them.
+
+        ``voice_mode`` adds the phone-call brevity rules so a spoken answer
+        stays short and natural instead of turning into a document.
+        ``guest`` marks a person who is not the owner: they get the privacy
+        rules, no tools at all and a redacted answer.
+        """
+        messages = self._build_messages(history, user_message, voice_mode, guest)
+        # Every tool in this registry acts on the owner's own data (tasks,
+        # reminders, memory, calls, delivery). A guest may only talk, so the
+        # safest possible restriction is to offer no tools to the model.
+        tools: list[dict[str, Any]] = [] if guest else self.tools.model_tools()
         tool_results: list[ToolResult] = []
-        model_name = self._settings.openai_model
+        requested_model = self._turn_model(voice_mode)
+        model_name = requested_model
         usage_total: dict[str, int] | None = None
+        # A reasoning model can spend a whole small token budget on thinking
+        # and answer with finish_reason="length" plus no text. Retry once
+        # without the cap instead of turning that into a spoken apology.
+        retried_without_cap = False
+        # Voice turns are not capped: a truncated call answer helps nobody.
+        allow_cap = not voice_mode
 
         for _round in range(self._settings.openai_max_tool_rounds):
-            completion = await self._complete(messages, tools)
+            completion = await self._complete(
+                messages, tools, allow_cap=allow_cap, model=requested_model
+            )
+            served_model = getattr(completion, "model", None)
+            if served_model and served_model != requested_model:
+                # openrouter/free routes to different models; make it visible.
+                logger.info(
+                    "Chat model routed: requested=%s served=%s",
+                    requested_model,
+                    served_model,
+                )
             model_name = getattr(completion, "model", None) or model_name
             usage_total = _merge_usage(usage_total, getattr(completion, "usage", None))
 
@@ -419,10 +460,45 @@ class AgentBrain:
                 continue
 
             text = (message.content or "").strip()
-            if not text:
-                raise BrainUnavailable(
-                    "The model returned an empty reply. Try again or change OPENAI_MODEL."
+            finish_reason = getattr(choices[0], "finish_reason", None)
+            if not text and not tool_calls:
+                if finish_reason == "length" and not retried_without_cap:
+                    retried_without_cap = True
+                    allow_cap = False
+                    logger.warning(
+                        "Model hit the token cap with no text (model=%s finish_reason=%s); "
+                        "retrying once without max_tokens",
+                        model_name,
+                        finish_reason,
+                    )
+                    continue
+                # Never invent a reply here: the caller decides what to say.
+                logger.warning(
+                    "Model returned no text: model=%s provider=%s finish_reason=%s "
+                    "choices=%d tool_calls=%d",
+                    model_name,
+                    self._settings.llm_provider,
+                    finish_reason,
+                    len(choices),
+                    len(tool_calls),
                 )
+                raise BrainUnavailable(
+                    "The model returned an empty reply. Try again or change the model."
+                )
+            if finish_reason == "length":
+                logger.warning(
+                    "Reply was truncated at the token cap (model=%s, %d chars); "
+                    "raise LLM_MAX_TOKENS if this repeats",
+                    model_name,
+                    len(text),
+                )
+            if guest:
+                # Last line of defence: a guest answer never carries a key, a
+                # path or the owner's contact details, even if the model
+                # repeated something from its own context.
+                text, _changed = redact(text, extra_secrets=self._owner_secrets())
+            if voice_mode:
+                text = await self._enforce_spoken_language(messages, text)
             return BrainReply(
                 text=text,
                 model=model_name,
@@ -439,10 +515,12 @@ class AgentBrain:
         self,
         history: Sequence[Mapping[str, Any]],
         user_message: str,
+        voice_mode: bool = False,
+        guest: bool = False,
     ) -> list[dict[str, Any]]:
         history = list(history)[-self._settings.chat_context_messages :]
         messages: list[dict[str, Any]] = [
-            {"role": "system", "content": self._system_message()},
+            {"role": "system", "content": self._system_message(voice_mode, guest)},
         ]
         for turn in history:
             role = turn.get("role")
@@ -452,16 +530,91 @@ class AgentBrain:
         messages.append({"role": "user", "content": user_message})
         return messages
 
-    def _system_message(self) -> str:
+    def _system_message(self, voice_mode: bool = False, guest: bool = False) -> str:
         now = datetime.now(self._settings.tzinfo)
         stamp = now.strftime("%A, %d %B %Y, %H:%M")
+        prompt = self._system_prompt
+        if voice_mode:
+            prompt = f"{prompt}\n\n{voice_rules()}"
+        if guest:
+            prompt = f"{prompt}\n\n{GUEST_RULES}"
         return (
-            f"{self._system_prompt}\n\n"
+            f"{prompt}\n\n"
             f"Runtime context: the person's local time is {stamp} ({self._settings.timezone})."
         )
 
+    def _owner_secrets(self) -> tuple[str, ...]:
+        """Owner details that must never appear in a guest's answer."""
+        settings = self._settings
+        values: list[str] = []
+        if settings.telegram_phone:
+            values.append(settings.telegram_phone)
+        if settings.telegram_owner_user_id is not None:
+            values.append(str(settings.telegram_owner_user_id))
+        return tuple(values)
+
+    async def _enforce_spoken_language(
+        self, messages: list[dict[str, Any]], text: str
+    ) -> str:
+        """Keep a spoken answer in Uzbek, whatever language the person used.
+
+        The call rules ask for Uzbek, but a small model can still answer in the
+        language it just heard. One rewrite request fixes that. If the rewrite
+        is not Uzbek either, the turn is dropped instead of spoken: Russian or
+        English through an Uzbek voice is worse than a short silence, and the
+        reason stays in the log.
+        """
+        report = language_report(text)
+        if report.ok:
+            return text
+        logger.warning(
+            "Voice reply was not Uzbek (%s); asking once for an Uzbek rewrite",
+            report.detail,
+        )
+        retry_messages = [
+            *messages,
+            {"role": "assistant", "content": text},
+            {"role": "user", "content": _UZBEK_REWRITE_REQUEST},
+        ]
+        # No tools and no token cap: this is a rewrite of an answer that
+        # already exists, not a new turn.
+        completion = await self._complete(retry_messages, [], allow_cap=False)
+        choices = getattr(completion, "choices", None) or []
+        rewritten = (choices[0].message.content or "").strip() if choices else ""
+        if not rewritten:
+            logger.warning("Uzbek rewrite returned no text; nothing is spoken")
+            raise BrainUnavailable("The answer could not be rewritten in Uzbek.")
+        still = language_report(rewritten)
+        if not still.ok:
+            logger.warning(
+                "Rewrite is still not Uzbek (%s); nothing is spoken", still.detail
+            )
+            raise BrainUnavailable("The answer could not be rewritten in Uzbek.")
+        logger.info("Voice reply rewritten into Uzbek (%d chars)", len(rewritten))
+        return rewritten
+
     def _ensure_client(self) -> Any:
+        """Build the client for the configured chat provider.
+
+        Both providers speak the OpenAI Chat Completions protocol, so only the
+        key and base URL change; the OPENAI_* path (including Gemini's
+        OpenAI-compatible endpoint) stays exactly as before.
+        """
         if self._client is not None:
+            return self._client
+        if self._settings.llm_provider == "openrouter":
+            key = self._settings.openrouter_key
+            if not key:
+                raise BrainNotConfigured(
+                    "No OpenRouter API key is configured. Set OPENROUTER_API_KEY in .env "
+                    "or set LLM_PROVIDER=openai."
+                )
+            self._client = AsyncOpenAI(
+                api_key=key,
+                base_url=self._settings.openrouter_base_url,
+                timeout=self._settings.llm_client_timeout,
+                max_retries=0,
+            )
             return self._client
         key = self._settings.openai_key
         if not key:
@@ -470,25 +623,87 @@ class AgentBrain:
             )
         self._client = AsyncOpenAI(
             api_key=key,
-            timeout=self._settings.openai_timeout_seconds,
+            base_url=self._settings.openai_base_url,
+            timeout=self._settings.llm_client_timeout,
             max_retries=0,
         )
         return self._client
+
+    def _ensure_fallback_client(self) -> Any | None:
+        """The OPENAI_* provider used when OpenRouter fails, if it is set up.
+
+        Fallback is intentionally one-directional: choosing ``openai`` keeps
+        the previous behaviour (no second network hop), and it only happens
+        when an OPENAI_API_KEY exists to talk to.
+        """
+        if self._fallback_client_injected:
+            return self._fallback_client
+        if self._fallback_client is not None:
+            return self._fallback_client
+        if self._settings.llm_provider != "openrouter":
+            return None
+        if not self._settings.openai_configured:
+            return None
+        self._fallback_client = AsyncOpenAI(
+            api_key=self._settings.openai_key,
+            base_url=self._settings.openai_base_url,
+            timeout=self._settings.llm_client_timeout,
+            max_retries=0,
+        )
+        return self._fallback_client
+
+    def _turn_model(self, voice: bool) -> str:
+        """Model for this turn: a call may use a faster one than chat."""
+        if voice:
+            override = self._settings.call_llm_model.strip()
+            if override:
+                return override
+        return self.model
 
     async def _complete(
         self,
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]],
+        *,
+        allow_cap: bool = True,
+        model: str | None = None,
     ) -> Any:
-        client = self._ensure_client()
-        kwargs: dict[str, Any] = {
-            "model": self._settings.openai_model,
-            "messages": messages,
-        }
+        provider = self._settings.llm_provider
+        kwargs = self._request_kwargs(model or self.model, messages, tools, allow_cap=allow_cap)
+        try:
+            return await self._complete_with(self._ensure_client(), kwargs)
+        except BrainError as exc:
+            fallback = self._ensure_fallback_client()
+            if fallback is None:
+                raise
+            logger.warning(
+                "Chat provider %s failed (%s); falling back to the OPENAI_* provider",
+                provider,
+                type(exc).__name__,
+            )
+            fallback_kwargs = self._request_kwargs(
+                self._settings.openai_model, messages, tools, allow_cap=allow_cap
+            )
+            return await self._complete_with(fallback, fallback_kwargs)
+
+    def _request_kwargs(
+        self,
+        model: str,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        *,
+        allow_cap: bool = True,
+    ) -> dict[str, Any]:
+        kwargs: dict[str, Any] = {"model": model, "messages": messages}
         if tools:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto"
+        if allow_cap and self._settings.llm_max_tokens > 0:
+            # Caps generation time on slow free models and keeps replies short.
+            kwargs["max_tokens"] = self._settings.llm_max_tokens
+        return kwargs
 
+    async def _complete_with(self, client: Any, kwargs: dict[str, Any]) -> Any:
         attempts = self._settings.openai_max_retries + 1
         for attempt in range(1, attempts + 1):
             try:

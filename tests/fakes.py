@@ -220,6 +220,7 @@ class FakeSpeech:
         self.audio = audio
         self.transcribed: list[bytes] = []
         self.synthesized: list[str] = []
+        self.formats: list[str] = []
 
     @property
     def configured(self) -> bool:
@@ -231,6 +232,9 @@ class FakeSpeech:
         self.transcribed.append(audio)
         return self.transcript
 
-    async def synthesize(self, text: str) -> bytes:
+    async def synthesize(self, text: str, response_format: str = "mp3") -> bytes:
         self.synthesized.append(text)
+        self.formats.append(response_format)
+        if response_format == "pcm":
+            return b"\x10\x00" * 2400  # 0.1s of 24 kHz PCM tone
         return self.audio

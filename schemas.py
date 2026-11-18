@@ -338,6 +338,7 @@ class TelegramStatus(BaseModel):
     configured: bool
     connected: bool
     authorized: bool
+    session_present: bool = False
     owner_configured: bool
     live_calls_enabled: bool
     detail: str

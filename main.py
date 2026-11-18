@@ -177,17 +177,20 @@ def create_app(
             source="startup",
             message=f"{app_settings.app_name} started (environment={app_settings.environment})",
             details=(
-                f"model={app_settings.openai_model}, "
+                f"provider={app_settings.llm_provider}, "
+                f"model={app_settings.chat_model}, "
                 f"openai_configured={app_settings.openai_configured}, "
+                f"openrouter_configured={app_settings.openrouter_configured}, "
                 f"telegram_enabled={app_settings.telegram_enabled}"
             ),
         )
         logger.info(
-            "%s %s starting | timezone=%s | model=%s | telegram=%s",
+            "%s %s starting | timezone=%s | provider=%s | model=%s | telegram=%s",
             app_settings.app_name,
             __version__,
             app_settings.timezone,
-            app_settings.openai_model,
+            app_settings.llm_provider,
+            app_settings.chat_model,
             app_settings.telegram_enabled,
         )
         try:
@@ -654,6 +657,28 @@ def create_app(
     @app.get("/calls/diagnostics", tags=["calls"])
     def call_diagnostics(agent: AgentRuntime = Depends(get_runtime)) -> dict[str, Any]:
         return agent.calls.transport_diagnostics()
+
+    @app.get("/calls/status", tags=["calls"])
+    def call_status(agent: AgentRuntime = Depends(get_runtime)) -> dict[str, Any]:
+        return agent.calls.status()
+
+    @app.post(
+        "/calls/answer",
+        tags=["calls"],
+        dependencies=[Depends(guard)],
+    )
+    async def answer_call(agent: AgentRuntime = Depends(get_runtime)) -> dict[str, Any]:
+        answered, detail = await agent.calls.answer()
+        return {"answered": answered, "detail": detail}
+
+    @app.post(
+        "/calls/hangup",
+        tags=["calls"],
+        dependencies=[Depends(guard)],
+    )
+    async def hangup_call(agent: AgentRuntime = Depends(get_runtime)) -> dict[str, Any]:
+        ended, detail = await agent.calls.hangup()
+        return {"ended": ended, "detail": detail}
 
     @app.get("/telegram/status", response_model=TelegramStatus, tags=["telegram"])
     def telegram_status(agent: AgentRuntime = Depends(get_runtime)) -> TelegramStatus:
