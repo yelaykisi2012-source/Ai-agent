@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Awaitable, Callable, Sequence
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy import select
 
@@ -22,8 +22,15 @@ logger = logging.getLogger(__name__)
 
 Notifier = Callable[[str], Awaitable[bool]]
 ExhaustedHook = Callable[[Reminder], None]
+#: Writes the message to send for a reminder, or None to stay silent.
+Composer = Callable[[Reminder], Awaitable[str | None]]
 
 ACTIVE_STATUSES = ("pending", "sent")
+#: Repeating reminders: the distance between two occurrences.
+REPEAT_RULES: dict[str, timedelta] = {
+    "daily": timedelta(days=1),
+    "weekly": timedelta(weeks=1),
+}
 
 
 class ReminderService:
@@ -34,15 +41,21 @@ class ReminderService:
         settings: Settings,
         scheduler: AgentScheduler,
         notifier: Notifier,
+        composer: Composer | None = None,
     ) -> None:
         self._settings = settings
         self._scheduler = scheduler
         self._notifier = notifier
         self._on_exhausted: ExhaustedHook | None = None
+        self._composer = composer
 
     def set_exhausted_hook(self, hook: ExhaustedHook) -> None:
         """Called once when a reminder runs out of attempts."""
         self._on_exhausted = hook
+
+    def set_composer(self, composer: Composer | None) -> None:
+        """Attach the agent that decides what a due reminder should say."""
+        self._composer = composer
 
     # -- creation --------------------------------------------------------- #
     def create(
@@ -56,10 +69,14 @@ class ReminderService:
         interval_minutes: int | None = None,
         sleep_check_id: int | None = None,
         schedule: bool = True,
+        repeat: str = "",
     ) -> Reminder:
         cleaned = message.strip()
         if not cleaned:
             raise ValueError("reminder message must not be empty")
+        repeat = (repeat or "").strip().lower()
+        if repeat and repeat not in REPEAT_RULES:
+            raise ValueError("repeat must be '', 'daily' or 'weekly'")
 
         with session_scope() as session:
             reminder = Reminder(
@@ -72,6 +89,7 @@ class ReminderService:
                 attempts=0,
                 max_attempts=max_attempts or self._settings.reminder_max_attempts,
                 interval_minutes=interval_minutes or self._settings.reminder_retry_minutes,
+                repeat=repeat,
                 created_at=utcnow(),
             )
             session.add(reminder)
@@ -87,7 +105,7 @@ class ReminderService:
         record_event(
             source="reminder",
             message=f"Reminder #{reminder_id} created",
-            details=f"kind={kind}, at={scheduled_for.isoformat()}",
+            details=f"kind={kind}, at={scheduled_for.isoformat()}, repeat={repeat or 'no'}",
         )
         created = self.get(reminder_id)
         if created is None:  # pragma: no cover - insert just succeeded
@@ -174,7 +192,23 @@ class ReminderService:
             return
 
         attempt = reminder.attempts + 1
-        if reminder.kind == "sleep_check":
+        if self._composer is not None and reminder.kind in ("reminder", "task_due"):
+            # The agent writes the actual message instead of forwarding a
+            # canned string. None means it judged the reminder unnecessary.
+            text = ""
+            try:
+                text = (await self._composer(reminder)) or ""
+            except Exception:  # noqa: BLE001 - a compose failure must not crash the scheduler
+                logger.exception("Reminder composer failed for %s", reminder_id)
+            if not text.strip():
+                self.acknowledge(reminder_id)
+                record_event(
+                    source="reminder",
+                    message=f"Reminder #{reminder_id} skipped by the agent",
+                    details=f"kind={reminder.kind}",
+                )
+                return
+        elif reminder.kind == "sleep_check":
             text = (
                 f"Sleep check ({attempt}/{reminder.max_attempts}): "
                 f"{reminder.message} Reply when you see this."
@@ -231,7 +265,45 @@ class ReminderService:
             reminder.status = "acknowledged"
             reminder.acknowledged_at = utcnow()
         self._scheduler.cancel_reminder(reminder_id)
+        self._schedule_next(reminder_id)
         return True
+
+    def _schedule_next(self, reminder_id: int) -> int | None:
+        """Create the next occurrence of a repeating reminder.
+
+        The next time is computed from the reminder's own time, not from the
+        moment it was acknowledged, so «har kuni 9:00» stays at 9:00. Past
+        occurrences (the computer was off for two days) are skipped instead of
+        firing a burst of old reminders.
+        """
+        with session_scope() as session:
+            row = session.get(Reminder, reminder_id)
+            if row is None or not row.repeat or row.repeat not in REPEAT_RULES:
+                return None
+            step = REPEAT_RULES[row.repeat]
+            next_at = as_utc(row.remind_at) + step
+            now = utcnow()
+            while next_at <= now:
+                next_at += step
+            message = row.message
+            kind = row.kind
+            interval = row.interval_minutes
+            repeat = row.repeat
+
+        created = self.create(
+            message,
+            next_at,
+            kind=kind,
+            interval_minutes=interval,
+            repeat=repeat,
+        )
+        logger.info(
+            "Repeating reminder %s -> #%s at %s",
+            reminder_id,
+            created.id,
+            next_at.isoformat(timespec="minutes"),
+        )
+        return created.id
 
     def acknowledge_all_pending(self) -> int:
         """Acknowledge every outstanding reminder; returns how many."""

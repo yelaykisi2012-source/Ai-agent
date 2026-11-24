@@ -1079,7 +1079,9 @@ async def _callback_scenario(settings: Settings) -> None:
 
     assert await _wait_for(lambda: scheduled == [3]), scheduled
     assert await _wait_for(lambda: "callback_scheduled" in finished), finished
-    assert any("3 daqiqadan keyin" in text for text in speech.synthesized)
+    assert await _wait_for(
+        lambda: any("daq" in text and "qo" in text.lower() for text in speech.synthesized)
+    ), speech.synthesized
 
 
 def test_a_plain_call_request_does_not_end_the_call(settings: Settings) -> None:
@@ -1130,8 +1132,9 @@ def test_a_call_reminder_dials_instead_of_notifying(settings: Settings) -> None:
     acknowledged: list[int] = []
 
     class _Calls:
-        async def place(self, reason: str) -> tuple[bool, str]:
+        async def place(self, reason: str, *, notify: bool = True) -> tuple[bool, str]:
             placed.append(reason)
+            assert notify is False
             return True, "dialing"
 
     class _Reminders:
@@ -1146,3 +1149,131 @@ def test_a_call_reminder_dials_instead_of_notifying(settings: Settings) -> None:
 
     assert placed == ["scheduled callback"]
     assert acknowledged == [42]
+
+
+def test_a_failed_scheduled_call_is_reported_honestly(settings: Settings) -> None:
+    from types import SimpleNamespace
+
+    from runtime import AgentRuntime
+
+    runtime = AgentRuntime(settings)
+    messages: list[str] = []
+    acknowledged: list[int] = []
+
+    class _Calls:
+        async def place(self, reason: str, *, notify: bool = True) -> tuple[bool, str]:
+            assert notify is False
+            return False, "I could not start the Telegram call (UserPrivacyRestrictedError)."
+
+    class _Reminders:
+        def acknowledge(self, reminder_id: int) -> bool:
+            acknowledged.append(reminder_id)
+            return True
+
+    class _Telegram:
+        ready = True
+
+        async def send_message(self, text: str, user_id: int | None = None) -> bool:
+            messages.append(text)
+            return True
+
+    runtime.calls = _Calls()
+    runtime.reminders = _Reminders()
+    runtime.telegram = _Telegram()
+
+    asyncio.run(runtime._run_scheduled_call(SimpleNamespace(id=42, kind="call")))
+
+    assert acknowledged == []
+    assert len(messages) == 1
+    assert messages and "amalga oshira olmadim" in messages[0]
+    assert "UserPrivacyRestrictedError" in messages[0]
+    assert "Privacy and Security" in messages[0]
+
+
+# --------------------------------------------------------------------------- #
+# Never leave the caller in silence
+# --------------------------------------------------------------------------- #
+class _DeafSpeech(FakeSpeech):
+    """A recogniser that keeps answering 429/503, like Gemini did."""
+
+    def __init__(self) -> None:
+        super().__init__(transcript="Meni eshityapsanmi?")
+        self.attempts = 0
+
+    async def transcribe(
+        self, audio: bytes, filename: str = "utterance.webm", language: str | None = None
+    ) -> str:
+        self.attempts += 1
+        from voice.speech_engine import VoiceError
+
+        raise VoiceError("Speech recognition failed. Please try again.")
+
+
+def _respond_session(settings: Settings, speech: Any, handler: Any) -> tuple[Any, list[str]]:
+    """A session whose speaking is recorded instead of streamed."""
+    session = VoiceCallSession(
+        settings,
+        FakeCallTransport(),
+        FakeCallClient(),
+        peer_id=555,
+        speech=speech,
+        on_message=handler,
+    )
+    spoken: list[str] = []
+
+    async def record(text: str) -> int:
+        spoken.append(text)
+        return 1
+
+    session._speak = record  # type: ignore[method-assign]
+    return session, spoken
+
+
+def test_a_dead_recogniser_still_gets_a_spoken_answer(settings: Settings) -> None:
+    from telegram import voice_call as calls
+
+    speech = _DeafSpeech()
+    session, spoken = _respond_session(_call_settings(settings), speech, _echo_message)
+
+    async def scenario() -> None:
+        original = calls._STT_RETRY_DELAY_SECONDS
+        calls._STT_RETRY_DELAY_SECONDS = 0.0
+        try:
+            await session._respond(_loud_frame() * 40, 1)
+        finally:
+            calls._STT_RETRY_DELAY_SECONDS = original
+
+    asyncio.run(scenario())
+
+    assert speech.attempts == 2  # one quick second try, then the apology
+    assert spoken == [calls.STT_APOLOGY]
+
+
+def test_a_slow_model_is_answered_with_a_short_line(settings: Settings) -> None:
+    from telegram import voice_call as calls
+
+    settings = _call_settings(settings)
+    object.__setattr__(settings, "telegram_call_reply_deadline_seconds", 0.05)
+
+    async def slow(text: str) -> str:
+        await asyncio.sleep(0.5)
+        return "Kech qolgan javob."
+
+    session, spoken = _respond_session(settings, FakeSpeech(transcript="Salom"), slow)
+    asyncio.run(session._respond(_loud_frame() * 40, 1))
+
+    assert spoken == [calls.LLM_APOLOGY]
+
+
+def test_an_empty_model_reply_is_spoken_too(settings: Settings) -> None:
+    from telegram import voice_call as calls
+
+    async def empty(_text: str) -> str:
+        return "   "
+
+    session, spoken = _respond_session(
+        _call_settings(settings), FakeSpeech(transcript="Salom"), empty
+    )
+    asyncio.run(session._respond(_loud_frame() * 40, 1))
+
+    assert spoken == [calls.LLM_APOLOGY]

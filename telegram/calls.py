@@ -47,6 +47,11 @@ class CallManager:
         self._pending_incoming: Any | None = None
         self._pending_caller: int | None = None
         self._lock = asyncio.Lock()
+        #: One automatic redial when a call ends before its audio ever started
+        #: (busy, declined, no answer). Reset as soon as a call really connects.
+        self._auto_retry_used = False
+        #: Seconds before that one redial; tests set it to 0.
+        self._retry_delay_seconds = 4.0
         #: "Yes, call me" from someone who is not the owner: user id -> expiry
         #: timestamp. Deliberately kept in this process only, so a restart asks
         #: again instead of reusing an agreement nobody repeated.
@@ -95,6 +100,20 @@ class CallManager:
         return None
 
     @property
+    def owner_ids(self) -> frozenset[int]:
+        """Every id that counts as the owner for calls, not just the first.
+
+        One person may own two Telegram accounts or two phones; the extra ids
+        live in ``TELEGRAM_OWNER_USER_IDS``. Their calls are owner calls, so an
+        incoming one is answered as the owner's instead of as a guest.
+        """
+        ids = set(self._settings.owner_user_ids)
+        single = self.owner_id
+        if single is not None:
+            ids.add(int(single))
+        return frozenset(ids)
+
+    @property
     def active(self) -> bool:
         session = self._session
         return bool(session is not None and session.active)
@@ -107,7 +126,11 @@ class CallManager:
 
     # -- public actions --------------------------------------------------- #
     async def place(
-        self, reason: str = "owner request", *, peer_id: int | None = None
+        self,
+        reason: str = "owner request",
+        *,
+        peer_id: int | None = None,
+        notify: bool = True,
     ) -> tuple[bool, str]:
         """Call the owner, or another person who agreed to it.
 
@@ -154,13 +177,14 @@ class CallManager:
                 "TELEGRAM_OWNER_USER_ID to your personal account. Nothing was dialled.",
             )
 
+        owners = self.owner_ids
         target = int(peer_id) if peer_id is not None else owner
         if self_id is not None and target == self_id:
             return (
                 False,
                 "I cannot place a Telegram call to my own account. Nothing was dialled.",
             )
-        if target != owner:
+        if target not in owners:
             refusal = self._check_guest_call(target)
             if refusal is not None:
                 logger.warning("Telegram call: refused (%s)", refusal[:120])
@@ -186,7 +210,7 @@ class CallManager:
             logger.info(
                 "Telegram call: placing a call because of %s (owner=%s)",
                 reason[:120],
-                target == owner,
+                target in owners,
             )
             started, detail = await session.place()
             self._session = session if started else None
@@ -202,7 +226,8 @@ class CallManager:
                     state="failed",
                     reason=detail,
                 )
-                await self._safe_send(f"Telegram call failed: {detail}")
+                if notify:
+                    await self._safe_send(f"Telegram call failed: {detail}")
             return started, detail
 
     async def answer(self) -> tuple[bool, str]:
@@ -223,8 +248,8 @@ class CallManager:
                     "A Telegram call is already in progress; I did not answer another one.",
                 )
             pending_caller = self._pending_caller
-            owner = self.owner_id
-            if owner is None or pending_caller not in (None, owner):
+            owners = self.owner_ids
+            if not owners or pending_caller not in (None, *owners):
                 self._pending_incoming = None
                 self._pending_caller = None
                 logger.warning(
@@ -383,7 +408,7 @@ class CallManager:
 
     async def _on_incoming(self, call: Any) -> None:
         caller = self._remote_user_id(call)
-        owner = self.owner_id
+        owners = self.owner_ids
 
         if self._session is not None and self._session.active:
             await self._decline(
@@ -407,7 +432,7 @@ class CallManager:
             return
 
         self_id = getattr(self._account, "self_id", None)
-        is_owner = owner is not None and caller == owner
+        is_owner = caller is not None and caller in owners
         if not is_owner:
             # Anyone may call when public calls are enabled. The caller is a
             # guest: the runtime gives them guest rules (no tools, no owner
@@ -716,6 +741,42 @@ class CallManager:
         await self._safe_send(
             f"Telegram call ended ({session.end_reason_text(reason)})."
         )
+
+        connected = bool(getattr(session, "connected", False))
+        if connected:
+            self._auto_retry_used = False
+            return
+        if session.direction != "outgoing" or reason == "failed":
+            return
+        # The call ended before any audio: the owner heard nothing, so saying
+        # "ended" alone would look like the assistant went silent for no reason.
+        if not self._auto_retry_used:
+            self._auto_retry_used = True
+            await self._safe_send(
+                "Qo‘ng‘iroq ulanishdan oldin yopildi "
+                f"({session.end_reason_text(reason)}). Bir marta qayta qo‘ng‘iroq "
+                "qilaman."
+            )
+            re_dial = asyncio.create_task(
+                self._retry_call(), name="call-auto-retry"
+            )
+            re_dial.add_done_callback(lambda task: task.exception())
+            return
+        await self._safe_send(
+            "Qo‘ng‘iroq yana ulanmadi "
+            f"({session.end_reason_text(reason)}). Telefonning Telegram’ida "
+            "qo‘ng‘iroqqa ruxsat bering yoki «kompyuter rejimiga o‘t» deb qayta "
+            "ayting; keyin qo‘ng‘iroqni qabul qiling."
+        )
+
+    async def _retry_call(self) -> None:
+        """One redial after a call that never connected."""
+        await asyncio.sleep(self._retry_delay_seconds)
+        if self._session is not None and self._session.active:
+            return
+        started, detail = await self.place("qayta urinish", notify=False)
+        if not started:
+            await self._safe_send(f"Qayta qo‘ng‘iroq boshlanmadi: {detail}")
 
     def _record(self, *, direction: str, peer_id: int, state: str, reason: str) -> None:
         try:

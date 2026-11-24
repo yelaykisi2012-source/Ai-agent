@@ -331,6 +331,24 @@ class DashboardSummary(BaseModel):
     memory_total: int
 
 
+class AgentRunOut(BaseModel):
+    """One recorded agent turn, as shown in the run log."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    trigger: str
+    channel: str
+    status: str
+    prompt: str = ""
+    reply: str = ""
+    tools: int = 0
+    error: str | None = None
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    duration_ms: int | None = None
+
+
 class TelegramStatus(BaseModel):
     """Telegram connection state, never including session data."""
 
@@ -358,6 +376,12 @@ class VoiceChatResponse(BaseModel):
     conversation_id: int
     audio_mime: str | None = None
     audio_base64: str | None = None
+
+
+class VoiceTranscriptResponse(BaseModel):
+    """Only the words, for a client that keeps its own conversation."""
+
+    text: str
 
 
 class HealthResponse(BaseModel):

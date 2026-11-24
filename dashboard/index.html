@@ -82,6 +82,24 @@
     </section>
 
     <section class="card">
+      <h2>Tool actions</h2>
+      <ul id="action-list" class="list feed"></ul>
+      <p class="muted">
+        Every tool call the agent executed, straight from data/audit.jsonl:
+        what it ran, with which arguments, and whether it worked.
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>Agent runs</h2>
+      <ul id="run-list" class="list feed"></ul>
+      <p class="muted">
+        Every turn the agent took: what triggered it, on which channel, how it
+        ended and how long it lasted.
+      </p>
+    </section>
+
+    <section class="card">
       <h2>Services</h2>
       <div id="service-grid" class="services"></div>
     </section>

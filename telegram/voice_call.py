@@ -78,6 +78,11 @@ _TRANSCRIPT_REPEAT_WINDOW_SECONDS = 8.0
 _MAX_STT_CACHE = 8
 #: A stalled playback queue must not block the reply worker forever.
 _OUTBOUND_PUT_TIMEOUT_SECONDS = 1.0
+#: Longest single utterance handed to recognition. A noisy line keeps the
+#: detector convinced that someone is talking; cutting the utterance at a
+#: length a person would still wait for answers the words that were said,
+#: while dropping them answers nothing at all.
+_MAX_UTTERANCE_MS = 12_000
 #: Natural break between two synthesized sentences (they are trimmed first).
 _SENTENCE_GAP_MS = 60
 #: A queued utterance that waited longer than this while a newer one is also
@@ -117,6 +122,20 @@ def _split_sentences(text: str) -> list[str]:
         if current:
             chunks.append(current)
     return chunks
+
+
+#: A reply the language guard dropped entirely still gets spoken: silence on
+#: a phone call reads as a broken assistant, and the owner cannot tell why.
+NOT_UZBEK_FALLBACK = "Kechirasiz, savolni qaytadan aytib yuboring."
+#: A recogniser that answered 429 or 503 is often free a moment later, so the
+#: audio is sent once more before the call admits it could not hear anything.
+_STT_RETRY_DELAY_SECONDS = 0.7
+#: Spoken when the words could not be heard at all. Silence reads as a dead
+#: line; one short sentence tells the person to simply try again.
+STT_APOLOGY = "Eshitmadim. Yana bir marta ayting, iltimos."
+#: Spoken when the model did not answer in time or failed. The call keeps
+#: going instead of waiting for a free model that may never answer.
+LLM_APOLOGY = "Kechirasiz, hozir javob tayyorlay olmadim. Yana bir marta ayting."
 
 
 def _speakable_sentences(text: str) -> list[str]:
@@ -599,7 +618,7 @@ class VoiceCallSession:
         speaking = False
         silence_run = 0
         barge_run = 0
-        max_buffer = BYTES_PER_FRAME * 3000  # 30 seconds hard cap
+        max_buffer = BYTES_PER_FRAME * round(_MAX_UTTERANCE_MS / FRAME_DURATION_MS)
 
         try:
             while not self._closing:
@@ -646,11 +665,21 @@ class VoiceCallSession:
                         speaking = False
                         silence_run = 0
 
-                if len(buffer) > max_buffer:
-                    logger.warning("Telegram call: utterance exceeded 30s; dropped")
+                if speaking and len(buffer) >= max_buffer:
+                    # Never throw away speech that was already heard: close the
+                    # utterance here and answer it. This is the path that used
+                    # to drop a whole answer on a noisy microphone.
+                    pcm = bytes(buffer)
                     buffer.clear()
                     speaking = False
                     silence_run = 0
+                    logger.warning(
+                        "Telegram call: utterance reached the %.0fs cap; "
+                        "answering it instead of dropping it",
+                        _MAX_UTTERANCE_MS / 1000,
+                    )
+                    if pcm_duration_ms(pcm) >= min_speech_ms:
+                        self._schedule_response(pcm)
         except asyncio.CancelledError:
             raise
         except Exception:  # noqa: BLE001 - never let the listener die silently
@@ -850,28 +879,37 @@ class VoiceCallSession:
                 pcm_duration_ms(pcm),
             )
             started = loop.time()
-            try:
-                wav = pcm16_to_wav(pcm)
-                # ``stt_language_hint`` is None unless STT_LANGUAGE is set, so
-                # the provider keeps auto-detecting: the person may speak
-                # Russian or English and still get an Uzbek answer.
-                transcript = (
-                    await self._speech.transcribe(
-                        wav,
-                        filename="call.wav",
-                        language=self._settings.stt_language_hint,
+            for attempt in (1, 2):
+                try:
+                    wav = pcm16_to_wav(pcm)
+                    # ``stt_language_hint`` is None unless STT_LANGUAGE is set,
+                    # so the provider keeps auto-detecting: the person may
+                    # speak Russian or English and still get an Uzbek answer.
+                    transcript = (
+                        await self._speech.transcribe(
+                            wav,
+                            filename="call.wav",
+                            language=self._settings.stt_language_hint,
+                        )
+                    ).strip()
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:  # noqa: BLE001 - the call must stay up
+                    logger.error(
+                        "Telegram call: utterance #%d: STT failed after %.2fs "
+                        "(%s, attempt %d/2)",
+                        index,
+                        loop.time() - started,
+                        type(exc).__name__,
+                        attempt,
                     )
-                ).strip()
-            except asyncio.CancelledError:
-                raise
-            except Exception as exc:  # noqa: BLE001 - the call must stay up
-                logger.error(
-                    "Telegram call: utterance #%d: STT failed after %.2fs (%s)",
-                    index,
-                    loop.time() - started,
-                    type(exc).__name__,
-                )
-                return
+                    if attempt == 1:
+                        await asyncio.sleep(_STT_RETRY_DELAY_SECONDS)
+                        continue
+                    # A dead line is worse than an honest "again, please".
+                    await self._apologize(STT_APOLOGY)
+                    return
+                break
             logger.info(
                 "Telegram call: utterance #%d: STT done in %.2fs (%d chars)",
                 index,
@@ -915,10 +953,24 @@ class VoiceCallSession:
         # -- LLM --------------------------------------------------------- #
         logger.info("Telegram call: utterance #%d: LLM started", index)
         started = loop.time()
+        # A free model can think for twenty seconds. A person on a call waits a
+        # few, then hangs up, which is what a silent assistant looks like.
+        deadline = float(
+            getattr(self._settings, "telegram_call_reply_deadline_seconds", 9.0) or 9.0
+        )
         try:
-            reply = await self._on_message(transcript)
+            reply = await asyncio.wait_for(self._on_message(transcript), timeout=deadline)
         except asyncio.CancelledError:
             raise
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Telegram call: utterance #%d: LLM still thinking after %.1fs; "
+                "speaking instead of waiting",
+                index,
+                deadline,
+            )
+            await self._apologize(LLM_APOLOGY)
+            return
         except Exception as exc:  # noqa: BLE001 - a failed reply must not kill the call
             logger.error(
                 "Telegram call: utterance #%d: LLM failed after %.2fs (%s: %s)",
@@ -928,16 +980,18 @@ class VoiceCallSession:
                 exc,
                 exc_info=True,
             )
+            await self._apologize(LLM_APOLOGY)
             return
         text = reply.strip() if isinstance(reply, str) else ""
         if not text:
             # OpenRouter can answer HTTP 200 with an empty message (reasoning
-            # models, tool-only turns). Nothing is spoken, but the call lives.
+            # models, tool-only turns). Nothing to say, so say that.
             logger.warning(
                 "Telegram call: utterance #%d: LLM returned no text after %.2fs",
                 index,
                 loop.time() - started,
             )
+            await self._apologize(LLM_APOLOGY)
             return
         logger.info(
             "Telegram call: utterance #%d: LLM done in %.2fs (%d chars)",
@@ -1078,6 +1132,22 @@ class VoiceCallSession:
         self._goodbye_generation += 1
         logger.info("Telegram call: goodbye cancelled (%s)", reason)
 
+    async def _apologize(self, text: str) -> None:
+        """Say one short line when the answer could not be produced.
+
+        A phone call with no voice sounds broken, and the person cannot tell a
+        rate limit from a bug. Speaking a plain "again, please" keeps the call
+        alive; a failed apology is logged, never raised.
+        """
+        try:
+            await self._speak(text)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001 - the call must survive a mute apology
+            logger.warning(
+                "Telegram call: could not speak the apology", exc_info=True
+            )
+
     async def _speak(self, text: str) -> int:
         """Speak ``text`` sentence by sentence; returns frames queued.
 
@@ -1097,9 +1167,10 @@ class VoiceCallSession:
         sentences = _speakable_sentences(spoken_text)
         if not sentences:
             logger.warning(
-                "Telegram call: nothing in this reply was Uzbek; staying silent"
+                "Telegram call: nothing in this reply was Uzbek; speaking a short "
+                "Uzbek fallback instead of staying silent"
             )
-            return 0
+            sentences = [NOT_UZBEK_FALLBACK]
         left = unread_digits(spoken_text)
         if left:
             logger.warning(

@@ -53,6 +53,67 @@ class Settings(BaseSettings):
     api_host: str = "127.0.0.1"
     api_port: int = Field(default=8000, ge=1, le=65535)
 
+    # --- Local computer channel ------------------------------------------- #
+    #: Let the owner ask the agent to read, write and list files on this
+    #: computer. Everything is confined to the project folder and credential
+    #: files are refused; other people (guests) never get tools at all.
+    local_files_enabled: bool = True
+    #: Root the file tools may touch. Empty means the project folder.
+    local_files_root: str = ""
+    local_files_max_kb: int = Field(default=200, ge=1, le=4096)
+
+    # --- Computer agent ----------------------------------------------------
+    #: Let the agent run shell commands and change files on this computer.
+    #: Destructive commands (format, shutdown, git push, reading .env) are
+    #: refused regardless; everything that is not read-only asks first.
+    computer_enabled: bool = True
+    #: Ask before any command that is not strictly read-only. Turn it off only
+    #: if you accept that the agent may install, move and delete on its own.
+    computer_confirm_commands: bool = True
+    #: One permission at the start is enough. The owner's request is the
+    #: approval, so a screen plan, a shell command or a file change runs at once
+    #: instead of stopping for a second "ha" on every step. Destructive
+    #: commands (format, shutdown, git push, reading .env) stay refused either
+    #: way, and nothing runs on its own without an owner request.
+    owner_auto_approve: bool = True
+    computer_command_timeout: int = Field(default=60, ge=5, le=600)
+    computer_output_max_kb: int = Field(default=16, ge=1, le=256)
+
+    # --- On-screen control ------------------------------------------------- #
+    #: Let the agent move the real mouse, click, type and scroll on this
+    #: computer's screen, with an animated cursor on top so the owner sees it.
+    #: Windows only, and every plan needs the owner's confirmation first.
+    gui_control_enabled: bool = True
+    #: How long the animated cursor stays on screen after the last action.
+    gui_cursor_idle_seconds: int = Field(default=6, ge=2, le=60)
+
+    # --- Web --------------------------------------------------------------- #
+    #: Let the agent search the public web and read pages. Only public http(s)
+    #: hosts are reachable: localhost, private ranges, metadata addresses and
+    #: file:// are refused.
+    web_enabled: bool = True
+    web_timeout_seconds: float = Field(default=15.0, gt=0, le=120)
+    web_max_results: int = Field(default=5, ge=1, le=10)
+    #: Size limit for one downloaded page (also the readable text limit).
+    web_fetch_max_kb: int = Field(default=64, ge=1, le=512)
+    #: Optional Exa API key for real web search (https://exa.ai). Without it,
+    #: search falls back to Wikipedia and DuckDuckGo's instant answer and says
+    #: so, instead of pretending to cover the whole web.
+    exa_api_key: SecretStr | None = None
+
+    # --- Images (ApyHub) --------------------------------------------------- #
+    #: ApyHub API token for background removal (https://apyhub.com). Empty
+    #: disables the image tool honestly: no request is sent and the reply says
+    #: the token is missing. Server-side only; never logged or serialised.
+    apy_token: SecretStr | None = None
+
+    #: Tool calls one reply may make before the agent must answer with what it
+    #: already has. This is the run budget: it stops a loop of failing calls.
+    agent_max_tool_calls: int = Field(default=8, ge=1, le=40)
+    #: Tool calls allowed in one *spoken* turn. A person on the phone is waiting,
+    #: so one lookup is enough; 0 answers from the model alone.
+    voice_max_tool_calls: int = Field(default=1, ge=0, le=8)
+
     # --- OpenAI ------------------------------------------------------------
     #: Read from OPENAI_API_KEY. Empty values are normalised to None so an
     #: unset key is detected reliably. Never logged or serialised.
@@ -71,8 +132,14 @@ class Settings(BaseSettings):
     openai_max_retries: int = Field(default=3, ge=0, le=6)
     openai_retry_base_delay: float = Field(default=0.5, ge=0, le=30)
     openai_retry_max_delay: float = Field(default=8.0, ge=0, le=60)
+    #: How long the primary chat provider is skipped after a hard failure
+    #: (daily free quota gone, rejected key). Without a fallback this is
+    #: ignored. 0 disables the cooldown.
+    llm_fallback_cooldown_seconds: int = Field(default=900, ge=0, le=86400)
     #: Maximum model<->tool round trips for a single reply.
-    openai_max_tool_rounds: int = Field(default=3, ge=1, le=5)
+    #: Model<->tool round trips per reply. Each round can request several calls,
+    #: bounded separately by AGENT_MAX_TOOL_CALLS.
+    openai_max_tool_rounds: int = Field(default=4, ge=1, le=8)
 
     # --- Chat provider -----------------------------------------------------
     #: Which chat provider the brain uses: "openai" keeps the OPENAI_* values
@@ -117,6 +184,14 @@ class Settings(BaseSettings):
     gemini_stt_timeout_seconds: float = Field(default=8.0, gt=0, le=60)
     #: Total budget for one utterance (primary model + fallback model).
     gemini_stt_total_seconds: float = Field(default=12.0, gt=0, le=60)
+    #: Second transcription backend used only when the primary one fails
+    #: (for example Gemini STT HTTP 429). Empty disables it. "whisper" runs
+    #: faster-whisper locally on this computer, so it needs no key and no
+    #: internet; it is skipped when the package is not installed.
+    speech_fallback_provider: str = ""
+    #: Local Whisper model size (tiny/base/small/medium). "small" is the
+    #: smallest size that still transcribes Uzbek acceptably on a CPU.
+    whisper_model: str = "small"
     #: Text-to-speech backend. Empty means "follow SPEECH_PROVIDER".
     #: "edge" uses the keyless Microsoft Edge neural voices (edge-tts).
     tts_provider: str = ""
@@ -129,6 +204,15 @@ class Settings(BaseSettings):
     edge_tts_rate: str = "+25%"
     edge_tts_pitch: str = "+0Hz"
     edge_tts_volume: str = "+0%"
+    #: VoiceLab (Aisha AI) — Uzbek-native voices. "voicelab" in TTS_PROVIDER
+    #: uses it; the key is sent as a bearer token and never logged.
+    voicelab_api_key: SecretStr | None = None
+    voicelab_base_url: str = "https://api.voicelab.uz"
+    #: A ``voice_...`` id from GET /v1/voices?language=uz. Gulnoza is the
+    #: documented Uzbek default; any Uzbek voice id works.
+    voicelab_voice_id: str = "voice_01J9NEUTRAL0000000000000001"
+    voicelab_language: str = "uz"
+    voicelab_speed: float = Field(default=1.0, ge=0.5, le=2.0)
     #: Language the assistant speaks on a call. Every spoken answer is Uzbek;
     #: the value is also used to check that the chosen TTS voice really is an
     #: Uzbek voice instead of assuming it.
@@ -151,11 +235,23 @@ class Settings(BaseSettings):
     telegram_session_path: str = "data/telegram/ksenus"
     #: Only this Telegram user id may talk to Ksenus. Set by the login CLI.
     telegram_owner_user_id: int | None = None
+    #: Extra ids that belong to the same owner — a second account or a second
+    #: phone. Each one gets the owner's full rights, so list only your own.
+    #: Accepts "123,456" or a JSON list.
+    telegram_owner_user_ids: list[int] = Field(default_factory=list)
     #: Let other Telegram users chat with Ksenus in a private message. Off by
     #: default on purpose: this is one person's assistant, and opening it to
     #: strangers is a deliberate choice. A guest gets no tools, no owner data
     #: and no call without saying yes first.
     telegram_public_chat_enabled: bool = False
+    #: Answer in group chats, but only when the message addresses the account:
+    #: an @mention or a reply to one of its messages. It never answers every
+    #: group message, so it cannot flood a chat. A group sender who is not the
+    #: owner is still a guest: no tools, no owner data.
+    telegram_groups_enabled: bool = True
+    #: Allow joining a group's voice chat (a Telegram group call). The account
+    #: joins muted and listens; speaking in a group call is not enabled yet.
+    telegram_group_calls_enabled: bool = True
     #: Extra Telegram user ids allowed to chat while public chat is off.
     #: Accepts "123,456" or a JSON list.
     telegram_allowed_user_ids: list[int] = Field(default_factory=list)
@@ -207,10 +303,34 @@ class Settings(BaseSettings):
     #: hanging up. Speaking again inside the window cancels the hang-up, so a
     #: misheard word costs a few seconds instead of ending the call.
     telegram_call_goodbye_grace_seconds: float = Field(default=3.0, ge=0.5, le=30.0)
+    #: How long one spoken answer may wait for the model. A free model can take
+    #: longer than a person tolerates, and dead air is what makes a call feel
+    #: broken, so the deadline is short and the call says something instead.
+    telegram_call_reply_deadline_seconds: float = Field(default=9.0, ge=2.0, le=60.0)
 
     # --- Autonomy and security --------------------------------------------
     #: When set, mutating endpoints require this token in the X-API-Token header.
     api_token: SecretStr | None = None
+    #: Windows-only global hotkey that opens a one-line prompt window.
+    hotkey_enabled: bool = True
+    hotkey: str = "ctrl+alt+space"
+
+    # --- Desktop companion ------------------------------------------------ #
+    #: The small animated pixel Ksenus on this computer's screen. It appears
+    #: together with computer mode; /companion/show puts it on screen at any
+    #: time and /companion/hide takes it away.
+    companion_enabled: bool = True
+    #: Pixel zoom for the sprite (1-4). 3 triples every pixel: the pet stays
+    #: sharp on a high-DPI screen instead of looking soft and tiny.
+    companion_scale: int = Field(default=3, ge=1, le=4)
+    #: How long the pet may sit untouched before it falls asleep.
+    companion_sleep_seconds: int = Field(default=90, ge=10, le=3600)
+    #: Kompyuter rejimida agent o‘z javobini shu kompyuterning dinamigida
+    #: aytadi (Windows). O‘chirilsa, agent jim qoladi — soxta ovoz yo‘q.
+    companion_voice_enabled: bool = True
+    #: Remember what the owner works in, looks at and likes, and use it when
+    #: they give a task. Read locally from this computer's windows only.
+    owner_profile_enabled: bool = True
     chat_rate_limit_per_minute: int = Field(default=30, ge=1, le=600)
     reminder_max_attempts: int = Field(default=3, ge=1, le=10)
     reminder_retry_minutes: int = Field(default=5, ge=1, le=120)
@@ -252,7 +372,7 @@ class Settings(BaseSettings):
             raise ValueError("database_url must not be empty")
         return value.strip()
 
-    @field_validator("openai_api_key", mode="before")
+    @field_validator("voicelab_api_key", "openai_api_key", mode="before")
     @classmethod
     def _blank_key_is_none(cls, value: object) -> object:
         if value is None:
@@ -304,14 +424,24 @@ class Settings(BaseSettings):
             raise ValueError("speech_provider must be 'openai' or 'gemini'")
         return normalized
 
+    @field_validator("speech_fallback_provider")
+    @classmethod
+    def _check_speech_fallback(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"", "openai", "gemini", "whisper"}:
+            raise ValueError(
+                "speech_fallback_provider must be '', 'openai', 'gemini' or 'whisper'"
+            )
+        return normalized
+
     @field_validator("tts_provider", "tts_fallback_provider")
     @classmethod
     def _check_tts_provider(cls, value: str) -> str:
         normalized = value.strip().lower()
-        if normalized not in {"", "openai", "gemini", "edge"}:
+        if normalized not in {"", "openai", "gemini", "edge", "voicelab"}:
             raise ValueError(
                 "tts_provider/tts_fallback_provider must be '', 'openai', "
-                "'gemini' or 'edge'"
+                "'gemini', 'edge' or 'voicelab'"
             )
         return normalized
 
@@ -325,12 +455,16 @@ class Settings(BaseSettings):
     def _normalise_language(cls, value: str) -> str:
         return (value or "").strip().lower()
 
-    @field_validator("telegram_allowed_user_ids", mode="before")
+    @field_validator("telegram_allowed_user_ids", "telegram_owner_user_ids", mode="before")
     @classmethod
     def _parse_user_id_list(cls, value: object) -> object:
         """Accept ``"123, 456"``, ``"[123,456]"`` or an already parsed list."""
         if value is None or isinstance(value, (list, tuple, set)):
             return value
+        if isinstance(value, int):
+            # pydantic-settings reads a bare env value as JSON, so a single id
+            # arrives as a number rather than as a one-item list.
+            return [value]
         if isinstance(value, str):
             text = value.strip()
             if not text:
@@ -341,11 +475,18 @@ class Settings(BaseSettings):
         return value
 
     @property
+    def owner_user_ids(self) -> frozenset[int]:
+        """Every id that counts as the owner: the main one plus the extras."""
+        ids = set(self.telegram_owner_user_ids)
+        if self.telegram_owner_user_id is not None:
+            ids.add(self.telegram_owner_user_id)
+        return frozenset(ids)
+
+    @property
     def chat_user_allowed_ids(self) -> frozenset[int]:
         """Every id that may chat: the owner plus the configured guests."""
         ids = set(self.telegram_allowed_user_ids)
-        if self.telegram_owner_user_id is not None:
-            ids.add(self.telegram_owner_user_id)
+        ids.update(self.owner_user_ids)
         return frozenset(ids)
 
     @property
@@ -367,7 +508,12 @@ class Settings(BaseSettings):
         return stripped or None
 
     @field_validator(
-        "openrouter_api_key", "telegram_api_hash", "api_token", mode="before"
+        "openrouter_api_key",
+        "telegram_api_hash",
+        "api_token",
+        "exa_api_key",
+        "apy_token",
+        mode="before",
     )
     @classmethod
     def _blank_secret_is_none(cls, value: object) -> object:
@@ -416,6 +562,15 @@ class Settings(BaseSettings):
         return self.openai_api_key is not None
 
     @property
+    def voicelab_key(self) -> str | None:
+        """The raw VoiceLab key. Never log or serialise this."""
+        return (
+            self.voicelab_api_key.get_secret_value()
+            if self.voicelab_api_key
+            else None
+        )
+
+    @property
     def openai_key(self) -> str | None:
         """The raw key for the SDK client. Never log or serialise this."""
         return self.openai_api_key.get_secret_value() if self.openai_api_key else None
@@ -433,6 +588,26 @@ class Settings(BaseSettings):
             if self.openrouter_api_key
             else None
         )
+
+    @property
+    def exa_configured(self) -> bool:
+        """True when a real web-search key is present. Safe to log."""
+        return self.exa_api_key is not None
+
+    @property
+    def exa_key(self) -> str | None:
+        """Raw Exa key for the search client. Never log or serialise this."""
+        return self.exa_api_key.get_secret_value() if self.exa_api_key else None
+
+    @property
+    def apy_configured(self) -> bool:
+        """True when an ApyHub token is present. Safe to log."""
+        return self.apy_token is not None
+
+    @property
+    def apy_token_value(self) -> str | None:
+        """Raw ApyHub token for the image client. Never log or serialise this."""
+        return self.apy_token.get_secret_value() if self.apy_token else None
 
     @property
     def chat_model(self) -> str:

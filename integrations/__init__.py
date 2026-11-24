@@ -1,1 +1,1 @@
-"""External service integrations (OpenAI)."""
+"""External service integrations (OpenAI, ApyHub)."""

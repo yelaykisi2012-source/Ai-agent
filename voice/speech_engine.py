@@ -185,6 +185,8 @@ class ComposedSpeechEngine:
         stt_name: str = "",
         tts_name: str = "",
         fallback_name: str = "",
+        stt_fallback: Any | None = None,
+        stt_fallback_name: str = "",
     ) -> None:
         self._stt = stt
         self._tts = tts
@@ -192,12 +194,17 @@ class ComposedSpeechEngine:
         self._stt_name = stt_name
         self._tts_name = tts_name
         self._fallback_name = fallback_name
+        self._stt_fallback = stt_fallback
+        self._stt_fallback_name = stt_fallback_name
 
     @property
     def configured(self) -> bool:
         # The call path needs transcription first; a TTS-only fallback must not
-        # make an unconfigured engine look ready.
-        return bool(getattr(self._stt, "configured", False))
+        # make an unconfigured engine look ready, but an offline recogniser
+        # does make it ready when the cloud one is missing.
+        primary = bool(getattr(self._stt, "configured", False))
+        backup = bool(getattr(self._stt_fallback, "configured", False))
+        return primary or backup
 
     async def transcribe(
         self,
@@ -205,7 +212,39 @@ class ComposedSpeechEngine:
         filename: str = "utterance.webm",
         language: str | None = None,
     ) -> str:
-        return await self._stt.transcribe(audio, filename=filename, language=language)
+        """Transcribe with the primary recogniser, then the configured backup.
+
+        A cloud recogniser fails for reasons that have nothing to do with the
+        audio (429, 503, no internet). Switching to the local engine keeps the
+        call going instead of turning a quotum into an apology.
+        """
+        fallback = self._stt_fallback
+        if fallback is not None and not getattr(self._stt, "configured", False):
+            logger.info(
+                "STT primary (%s) is not configured; using %s",
+                self._stt_name,
+                self._stt_fallback_name,
+            )
+            return await fallback.transcribe(audio, filename=filename, language=language)
+
+        try:
+            return await self._stt.transcribe(audio, filename=filename, language=language)
+        except VoiceError as exc:
+            if fallback is None or not getattr(fallback, "configured", False):
+                raise
+            logger.warning(
+                "STT primary (%s) failed (%s); trying fallback (%s)",
+                self._stt_name,
+                type(exc).__name__,
+                self._stt_fallback_name,
+            )
+        text = await fallback.transcribe(audio, filename=filename, language=language)
+        logger.info(
+            "STT fallback (%s) returned %d characters",
+            self._stt_fallback_name,
+            len(text or ""),
+        )
+        return text
 
     async def synthesize(self, text: str, response_format: str = "mp3") -> bytes:
         if self._tts.configured:
@@ -238,6 +277,10 @@ class ComposedSpeechEngine:
 
 
 def _build_engine(provider: str, settings: Settings) -> Any:
+    if provider == "whisper":
+        from voice.whisper_speech import WhisperSpeechEngine
+
+        return WhisperSpeechEngine(settings)
     if provider == "gemini":
         from voice.gemini_speech import GeminiSpeechEngine
 
@@ -246,6 +289,10 @@ def _build_engine(provider: str, settings: Settings) -> Any:
         from voice.edge_speech import EdgeSpeechEngine
 
         return EdgeSpeechEngine(settings)
+    if provider == "voicelab":
+        from voice.voicelab_speech import VoiceLabSpeechEngine
+
+        return VoiceLabSpeechEngine(settings)
     return SpeechEngine(settings)
 
 
@@ -304,7 +351,20 @@ def build_speech_engine(settings: Settings) -> Any:
         if fallback is not None:
             _check_tts_language(settings, fallback_provider)
 
-    if fallback is None and tts is stt:
+    # Offline recogniser, used only when the configured STT fails.
+    stt_fallback_provider = settings.speech_fallback_provider
+    stt_fallback: Any | None = None
+    if stt_fallback_provider and stt_fallback_provider != stt_provider:
+        candidate = _build_engine(stt_fallback_provider, settings)
+        if getattr(candidate, "configured", False):
+            stt_fallback = candidate
+        else:
+            logger.warning(
+                "STT fallback %r is not available; primary recognition only",
+                stt_fallback_provider,
+            )
+
+    if fallback is None and stt_fallback is None and tts is stt:
         return stt
     return ComposedSpeechEngine(
         stt,
@@ -313,4 +373,6 @@ def build_speech_engine(settings: Settings) -> Any:
         stt_name=stt_provider,
         tts_name=tts_provider,
         fallback_name=fallback_provider,
+        stt_fallback=stt_fallback,
+        stt_fallback_name=stt_fallback_provider if stt_fallback is not None else "",
     )

@@ -105,7 +105,15 @@ async def _empty_llm_reply(settings: Settings) -> None:
     session._schedule_response(_utterance_pcm(1))
     session._schedule_response(_utterance_pcm(2))
 
-    assert await _wait_for(lambda: speech.synthesized == ["javob bor"], attempts=100)
+    from telegram import voice_call as calls
+
+    # The empty reply is not left as silence: one short line is spoken, then
+    # the next utterance is answered normally.
+    # The apology is spoken sentence by sentence, like every other reply.
+    ok = await _wait_for(lambda: len(speech.synthesized) == 3, attempts=100)
+    assert ok, speech.synthesized
+    assert speech.synthesized[-1] == "javob bor"
+    assert "".join(speech.synthesized[:-1]) == calls.LLM_APOLOGY.replace(". ", ".")
     assert heard == ["birinchi gap", "ikkinchi gap"]
     assert session.status()["replies"] == 1
     assert session.status()["state"] != "ended"

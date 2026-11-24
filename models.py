@@ -134,6 +134,11 @@ class Reminder(Base):
     attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     max_attempts: Mapped[int] = mapped_column(Integer, default=3, nullable=False)
     interval_minutes: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
+    #: "" (one-off), "daily" or "weekly". A repeating reminder is re-created
+    #: for its next occurrence as soon as this one is acknowledged.
+    repeat: Mapped[str] = mapped_column(
+        String(16), default="", server_default="", nullable=False
+    )
     last_attempt_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
@@ -230,6 +235,24 @@ class PendingAction(Base):
     )
 
 
+class MessengerPin(Base):
+    """The owner's permanent 4-digit code for the mini messenger.
+
+    Only one row is ever written. The code itself is never stored: the row
+    keeps a PBKDF2 hash plus its salt, so reading the database does not reveal
+    the PIN, and there is deliberately no endpoint that changes it.
+    """
+
+    __tablename__ = "messenger_pin"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    pin_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    salt: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+
+
 class RuntimeState(Base):
     """Small key/value store for runtime flags (paused state, owner id)."""
 
@@ -240,3 +263,37 @@ class RuntimeState(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False
     )
+
+
+class AgentRun(Base):
+    """One autonomous turn: what triggered it and what it actually did.
+
+    Every channel (HTTP, Telegram, phone call, reminder, desktop) records a
+    row, so ``/runs`` can answer "what did the agent do on its own, and why"
+    without reading logs.
+    """
+
+    __tablename__ = "agent_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    trigger: Mapped[str] = mapped_column(
+        String(24), default="chat", nullable=False, index=True
+    )
+    channel: Mapped[str] = mapped_column(String(16), default="http", nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(12), default="running", nullable=False, index=True
+    )
+    prompt: Mapped[str] = mapped_column(Text, nullable=False)
+    reply: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    tools: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    error: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    finished_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    def __repr__(self) -> str:  # pragma: no cover - debugging aid
+        return f"AgentRun(id={self.id!r}, trigger={self.trigger!r}, status={self.status!r})"

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -172,6 +173,20 @@ def list_conversations(limit: int, offset: int) -> tuple[list[ConversationStats]
     return stats, int(total)
 
 
+def rename_conversation(conversation_id: int, title: str) -> str | None:
+    """Give a conversation a new, owner-chosen title. None when absent."""
+    cleaned = " ".join((title or "").split())
+    if not cleaned:
+        raise ValueError("a conversation title must not be empty")
+    with session_scope() as session:
+        conversation = session.get(Conversation, conversation_id)
+        if conversation is None:
+            return None
+        conversation.title = cleaned[:TITLE_MAX_LENGTH]
+        conversation.updated_at = utcnow()
+        return conversation.title
+
+
 def delete_conversation(conversation_id: int) -> bool:
     """Delete a conversation and all of its messages. False if absent."""
     with session_scope() as session:
@@ -220,6 +235,60 @@ def list_memories(
         entries = list(session.scalars(stmt.limit(limit).offset(offset)))
         total = session.scalar(count_stmt) or 0
     return entries, int(total)
+
+
+#: Only an explicit request is remembered automatically. Anything looser
+#: would fill the memory with small talk the owner never asked to keep.
+_REMEMBER_PATTERNS = (
+    re.compile(r"^(?:eslab qo[‘'ʻ]y(?:ing)?|yodda tut(?:ing)?|esda saqla(?:ng)?)\s*[:,—-]\s*(.+)$", re.I),
+    re.compile(r"^remember\s*[:,—-]\s*(.+)$", re.I),
+    re.compile(r"^mening ismim\s+([\w‘'ʻ-]{2,40})", re.I),
+)
+
+
+def rememberable(text: str) -> str | None:
+    """The fact inside an explicit «eslab qo‘y: …» message, or ``None``."""
+    cleaned = " ".join((text or "").split())
+    if not cleaned:
+        return None
+    for pattern in _REMEMBER_PATTERNS:
+        match = pattern.match(cleaned)
+        if match:
+            fact = match.group(1).strip(" .!?—-")
+            return fact or None
+    return None
+
+
+def find_duplicate(content: str) -> MemoryEntry | None:
+    """An existing memory that says the same thing (case/spacing ignored)."""
+    wanted = " ".join((content or "").lower().split())
+    if not wanted:
+        return None
+    for entry in list_memories(limit=200):
+        if " ".join(entry.content.lower().split()) == wanted:
+            return entry
+    return None
+
+
+def auto_remember(text: str, source: str = "chat") -> MemoryEntry | None:
+    """Save a fact the owner explicitly asked to keep, without duplicates.
+
+    Returns the stored (or already known) entry, or ``None`` when the message
+    contains no explicit request.
+    """
+    fact = rememberable(text)
+    if not fact:
+        return None
+    existing = find_duplicate(fact)
+    if existing is not None:
+        with session_scope() as session:
+            row = session.get(MemoryEntry, existing.id)
+            if row is not None:
+                row.updated_at = utcnow()
+                session.flush()
+                return row
+        return existing
+    return add_memory(fact, category="fact", source=source)
 
 
 def search_memories(query: str, limit: int = 10) -> list[MemoryEntry]:

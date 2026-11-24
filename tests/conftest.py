@@ -23,6 +23,23 @@ def _clean_database_state() -> Iterator[None]:
     database.dispose_database()
 
 
+@pytest.fixture(autouse=True)
+def _isolated_audit(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tool calls made by tests must not appear in the owner's audit feed."""
+    import safety
+
+    monkeypatch.setattr(safety, "TRASH_DIR", tmp_path / "trash")
+    monkeypatch.setattr(safety, "AUDIT_FILE", tmp_path / "audit.jsonl")
+
+
+@pytest.fixture(autouse=True)
+def _isolated_key_pool(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tests must never read or rotate the owner's real API keys."""
+    import api_keys
+
+    monkeypatch.setattr(api_keys, "POOL_PATH", tmp_path / "api_keys.json")
+
+
 @pytest.fixture()
 def settings(tmp_path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Settings]:
     """Settings pointing at a throwaway database with no external services."""
@@ -53,6 +70,8 @@ def settings(tmp_path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Settings]:
         "TELEGRAM_PHONE",
         "TELEGRAM_OWNER_USER_ID",
         "OPENROUTER_API_KEY",
+        "EXA_API_KEY",
+        "APY_TOKEN",
     ):
         monkeypatch.delenv(name, raising=False)
 

@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="uz-Latn">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#07070a" />
+  <title data-i18n="app.title">Ksenos Messenger</title>
+  <link rel="icon" href="/mini-app/static/messenger.ico" sizes="any" />
+  <link rel="stylesheet" href="/messenger/static/styles.css" />
+</head>
+<body>
+  <!-- ===================== PIN gate ===================== -->
+  <div class="gate" id="gate">
+    <div class="gate-glow" aria-hidden="true"></div>
+    <div class="gate-card" id="gateCard">
+      <div class="gate-brand">
+        <span class="mark">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M6 4v16M6 12.2 17.6 3.8M6 12.2 18.4 20.2" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <span class="gate-name">Ksenos<span>Messenger</span></span>
+      </div>
+
+      <h1 id="gateTitle" data-i18n="gate.title">Kirish kodi</h1>
+      <p id="gateSub" data-i18n="gate.sub">Akkauntingizga kirish uchun 4 xonali kodni kiriting</p>
+
+      <div class="dots" id="dots" aria-label="PIN" data-i18n-aria="gate.dotsAria">
+        <span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      </div>
+
+      <div class="keypad" id="keypad">
+        <button type="button" data-key="1">1</button>
+        <button type="button" data-key="2">2</button>
+        <button type="button" data-key="3">3</button>
+        <button type="button" data-key="4">4</button>
+        <button type="button" data-key="5">5</button>
+        <button type="button" data-key="6">6</button>
+        <button type="button" data-key="7">7</button>
+        <button type="button" data-key="8">8</button>
+        <button type="button" data-key="9">9</button>
+        <button type="button" class="ghost" data-key="clear">C</button>
+        <button type="button" data-key="0">0</button>
+        <button type="button" class="ghost" data-key="back" aria-label="Backspace">←</button>
+      </div>
+
+      <p class="gate-msg" id="gateMsg" role="status" aria-live="polite"></p>
+
+      <button class="gate-account" id="gateAccount" type="button" data-i18n="gate.account">Akkaunt yaratish</button>
+
+      <div class="gate-lang" id="gateLang">
+        <button type="button" data-lang="uz">UZ</button>
+        <button type="button" data-lang="ru">RU</button>
+        <button type="button" data-lang="en">EN</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== messenger ===================== -->
+  <div class="app" id="app" hidden>
+    <aside class="rail" id="rail">
+      <div class="rail-head">
+        <span class="brand">Ksenos<span>Messenger</span></span>
+        <button class="icon-btn" id="lockBtn" type="button" aria-label="Lock" data-i18n-aria="rail.lock">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 10V8a5 5 0 0 1 10 0v2M5.8 10h12.4A1.8 1.8 0 0 1 20 11.8v7.4A1.8 1.8 0 0 1 18.2 21H5.8A1.8 1.8 0 0 1 4 19.2v-7.4A1.8 1.8 0 0 1 5.8 10Z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+
+      <button class="new-chat" id="newChat" type="button">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span data-i18n="rail.new">Yangi suhbat</span>
+      </button>
+
+      <label class="search">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="6.4" stroke="currentColor" stroke-width="1.7"/><path d="m16 16 4 4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        <input id="searchInput" type="search" autocomplete="off" data-i18n-attr="placeholder:rail.search" placeholder="Tarixdan qidirish…" />
+      </label>
+
+      <div class="rail-title">
+        <span data-i18n="rail.history">Yozishmalar tarixi</span>
+        <span class="count" id="historyCount">0</span>
+      </div>
+
+      <div class="history" id="historyList" role="list"></div>
+
+      <div class="rail-foot">
+        <button class="settings-entry" id="settingsBtn" type="button">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+          <span data-i18n="set.title">Sozlamalar</span>
+        </button>
+        <div class="lang" id="langSwitch" role="group" aria-label="Til">
+          <button type="button" data-lang="uz">UZ</button>
+          <button type="button" data-lang="ru">RU</button>
+          <button type="button" data-lang="en">EN</button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="chat">
+      <header class="chat-head">
+        <button class="icon-btn only-narrow" id="railToggle" type="button" aria-label="Menu" data-i18n-aria="chat.menu">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+        <span class="avatar">
+          <img src="/mini-app/static/assets/idle-0.png" alt="" id="avatarSprite" />
+          <span class="presence"></span>
+        </span>
+        <span class="chat-id">
+          <b id="chatName">Ksenos</b>
+          <small id="chatStatus" data-i18n="chat.online">online · faqat agent</small>
+        </span>
+        <span class="spacer"></span>
+        <span class="thread-badge" id="threadBadge" hidden></span>
+        <button class="icon-btn" id="threadEdit" type="button" hidden aria-label="Rename" data-i18n-aria="chat.rename">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h4l9.5-9.5a2.1 2.1 0 0 0-3-3L5 17v3Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M14.5 5.5 18.5 9.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </button>
+      </header>
+
+      <section class="thread" id="thread" aria-live="polite">
+        <div class="empty" id="emptyState">
+          <img class="empty-robot" src="/mini-app/static/assets/idle-1.png" alt="" />
+          <h2 data-i18n="chat.emptyTitle">Suhbatni boshlang</h2>
+          <p data-i18n="chat.emptyText">Kontakt kerak emas: yozing, javob shu yerda boʻladi. Tarix avtomatik saqlanadi.</p>
+          <div class="chips">
+            <button type="button" class="chip" data-prompt="Bugun nima qilamiz?">Bugun nima qilamiz?</button>
+            <button type="button" class="chip" data-prompt="Eslatma qoʻy: ertaga 9:00 da uchrashuv.">Eslatma qoʻy…</button>
+            <button type="button" class="chip" data-prompt="Kompyuterda nima boʻlyapti?">Kompyuterda nima bor?</button>
+          </div>
+        </div>
+      </section>
+
+      <div class="typing" id="typing" hidden>
+        <i></i><i></i><i></i><span data-i18n="chat.typing">Ksenos yozmoqda…</span>
+      </div>
+
+      <form class="composer" id="composer">
+        <textarea id="input" rows="1" autocomplete="off" data-i18n-attr="placeholder:chat.placeholder" placeholder="Xabar yozing…"></textarea>
+        <button class="send" id="sendBtn" type="submit" aria-label="Send" data-i18n-aria="chat.send">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4.5 12 20 4.5 15.2 20l-3.1-5.6L4.5 12Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+        </button>
+      </form>
+    </main>
+
+    <div class="scrim" id="scrim" hidden></div>
+  </div>
+
+  <!-- ===================== settings (big, ChatGPT-style) ===================== -->
+  <div class="sheet" id="settings" hidden>
+    <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <aside class="sheet-nav">
+        <h2 id="settingsTitle" data-i18n="set.title">Sozlamalar</h2>
+        <button class="snav active" type="button" data-pane="profile">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="9" r="3.4" stroke="currentColor" stroke-width="1.6"/><path d="M5 20a7 7 0 0 1 14 0" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <span data-i18n="set.profile">Profil</span>
+        </button>
+        <button class="snav" type="button" data-pane="look">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18c1.4 0 2-.9 2-1.9 0-1.6-1.7-1.9-1.7-3.2 0-1 .8-1.7 1.8-1.7H16a5 5 0 0 0 5-5C21 5.9 17 3 12 3Z" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="9" r="1.2" fill="currentColor"/><circle cx="12" cy="7" r="1.2" fill="currentColor"/><circle cx="16" cy="9" r="1.2" fill="currentColor"/></svg>
+          <span data-i18n="set.appearanceShort">Koʻrinish</span>
+        </button>
+        <button class="snav" type="button" data-pane="language">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.5"/><path d="M3.5 12h17M12 3.5c2.4 2.4 3.6 5.4 3.6 8.5s-1.2 6.1-3.6 8.5c-2.4-2.4-3.6-5.4-3.6-8.5S9.6 5.9 12 3.5Z" stroke="currentColor" stroke-width="1.5"/></svg>
+          <span data-i18n="set.language">Til</span>
+        </button>
+        <button class="snav" type="button" data-pane="pin">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4.5" y="10" width="15" height="10" rx="2.2" stroke="currentColor" stroke-width="1.5"/><path d="M8 10V7.5a4 4 0 0 1 8 0V10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <span data-i18n="set.pin">Kirish kodi</span>
+        </button>
+        <button class="snav" type="button" data-pane="ai">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3.5 13.7 9l5.5 1.7-5.5 1.7L12 18l-1.7-5.6L4.8 10.7 10.3 9 12 3.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+          <span data-i18n="set.ai">AI va kalitlar</span>
+        </button>
+        <button class="snav" type="button" data-pane="data">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><ellipse cx="12" cy="6" rx="7" ry="2.6" stroke="currentColor" stroke-width="1.5"/><path d="M5 6v6c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6V6M5 12v6c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6v-6" stroke="currentColor" stroke-width="1.5"/></svg>
+          <span data-i18n="set.data">Maʼlumotlar</span>
+        </button>
+        <button class="snav" type="button" data-pane="about">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.5"/><path d="M12 11v5.5M12 7.8v.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          <span data-i18n="set.aboutShort">Ilova</span>
+        </button>
+
+        <button class="icon-btn sheet-close" id="settingsClose" type="button" aria-label="Close" data-i18n-aria="set.close">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+      </aside>
+
+      <div class="sheet-content">
+        <section class="pane active" data-pane="profile">
+          <h3 data-i18n="set.profile">Profil</h3>
+          <p class="pane-lead" data-i18n="set.profileLead">Bu ism va rasm faqat shu qurilmada koʻrinadi.</p>
+          <div class="profile-row">
+            <span class="profile-pic" id="profilePic">
+              <img id="profileImg" alt="" hidden />
+              <span id="profileInitial">K</span>
+            </span>
+            <div class="profile-actions">
+              <label class="btn-line" for="avatarInput" data-i18n="set.upload">Rasm yuklash</label>
+              <input id="avatarInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
+              <button class="btn-line ghost" id="avatarRemove" type="button" data-i18n="set.remove">Oʻchirish</button>
+            </div>
+          </div>
+          <label class="field">
+            <span data-i18n="set.name">Ism</span>
+            <input id="nameInput" type="text" maxlength="40" data-i18n-attr="placeholder:set.namePlace" placeholder="Ismingiz" />
+          </label>
+        </section>
+
+        <section class="pane" data-pane="look">
+          <h3 data-i18n="set.appearance">Koʻrinish — 6 dizayn</h3>
+          <p class="pane-lead" data-i18n="set.lookLead">Har bir dizayn — alohida kayfiyat: rang, fon va xabar uslubi.</p>
+          <div class="themes" id="themeGrid">
+            <button type="button" class="theme" data-theme="obsidian">
+              <span class="swatch"><i class="s-head"></i><i class="s-bubble"></i><i class="s-bubble me"></i><i class="s-accent"></i></span>
+              <span data-i18n="theme.obsidian">Obsidian</span>
+            </button>
+            <button type="button" class="theme" data-theme="midnight">
+              <span class="swatch"><i class="s-head"></i><i class="s-bubble"></i><i class="s-bubble me"></i><i class="s-accent"></i></span>
+              <span data-i18n="theme.midnight">Midnight</span>
+            </button>
+            <button type="button" class="theme" data-theme="emerald">
+              <span class="swatch"><i class="s-head"></i><i class="s-bubble"></i><i class="s-bubble me"></i><i class="s-accent"></i></span>
+              <span data-i18n="theme.emerald">Emerald</span>
+            </button>
+            <button type="button" class="theme" data-theme="sepia">
+              <span class="swatch"><i class="s-head"></i><i class="s-bubble"></i><i class="s-bubble me"></i><i class="s-accent"></i></span>
+              <span data-i18n="theme.sepia">Sepia</span>
+            </button>
+            <button type="button" class="theme" data-theme="violet">
+              <span class="swatch"><i class="s-head"></i><i class="s-bubble"></i><i class="s-bubble me"></i><i class="s-accent"></i></span>
+              <span data-i18n="theme.violet">Violet</span>
+            </button>
+            <button type="button" class="theme" data-theme="graphite">
+              <span class="swatch"><i class="s-head"></i><i class="s-bubble"></i><i class="s-bubble me"></i><i class="s-accent"></i></span>
+              <span data-i18n="theme.graphite">Graphite</span>
+            </button>
+          </div>
+          <p class="set-note" data-i18n="set.lookNote">Tanlov darhol qoʻllanadi va keyingi ochilishda ham saqlanadi.</p>
+        </section>
+
+        <section class="pane" data-pane="language">
+          <h3 data-i18n="set.language">Til</h3>
+          <p class="pane-lead" data-i18n="set.languageLead">Interfeys tili. Brauzer tilidan avtomatik tanlanadi.</p>
+          <div class="seg" id="setLang">
+            <button type="button" data-lang="uz">Oʻzbekcha</button>
+            <button type="button" data-lang="ru">Русский</button>
+            <button type="button" data-lang="en">English</button>
+          </div>
+        </section>
+
+        <section class="pane" data-pane="pin">
+          <h3 data-i18n="set.pin">Kirish kodi</h3>
+          <p class="pane-lead" data-i18n="set.pinNote">Kod doimiy: bir marta oʻrnatiladi va hech qachon oʻzgarmaydi.</p>
+          <div class="pin-view">
+            <span class="pin-dots" id="pinDots">••••</span>
+            <button class="btn-line" id="pinReveal" type="button" data-i18n="set.pinShow">Koʻrsatish</button>
+          </div>
+          <p class="set-note" id="lockNote"></p>
+        </section>
+
+        <section class="pane" data-pane="ai">
+          <h3 data-i18n="set.ai">AI va kalitlar</h3>
+          <label class="switch">
+            <input id="emojiToggle" type="checkbox" />
+            <span data-i18n="set.emoji">Javoblarda emoji ishlatilsin</span>
+          </label>
+          <label class="field" style="margin-top:16px">
+            <span data-i18n="set.apiKey">Oʻz API kalitingiz</span>
+            <input id="keyInput" type="password" autocomplete="off" data-i18n-attr="placeholder:set.apiKeyPlace" placeholder="Kalitni kiriting" />
+          </label>
+          <div class="key-row">
+            <button class="btn-line" id="keyAdd" type="button" data-i18n="set.keyAdd">Kalit qoʻshish</button>
+            <span class="set-note" id="keyCount"></span>
+          </div>
+          <p class="set-note" data-i18n="set.keyNote">Kalit tugasa, ilova avtomatik keyingisiga oʻtadi. Kalitlar shu kompyuterda saqlanadi.</p>
+        </section>
+
+        <section class="pane" data-pane="data">
+          <h3 data-i18n="set.data">Maʼlumotlar</h3>
+          <p class="pane-lead" data-i18n="set.dataLead">Suhbatlar shu kompyuterda saqlanadi. Nusxasini olib, boshqa qurilmaga koʻchirish mumkin.</p>
+          <div class="data-row">
+            <div>
+              <b data-i18n="set.export">Tarixni yuklab olish</b>
+              <p class="set-note" data-i18n="set.exportNote">Barcha suhbatlar bitta JSON faylda — zaxira yoki boshqa qurilma uchun.</p>
+            </div>
+            <a class="btn-line" id="exportBtn" href="/messenger/api/export" download="ksenos-history.json" data-i18n="set.exportBtn">Yuklab olish</a>
+          </div>
+          <div class="data-row">
+            <div>
+              <b data-i18n="set.counts">Saqlangan suhbatlar</b>
+              <p class="set-note" id="dataCounts">—</p>
+            </div>
+          </div>
+          <p class="set-note" data-i18n="set.dataNote">Boshqa qurilmada ilovani oʻrnatib, shu PIN bilan ochasiz — suhbatlar oʻsha qurilmaning bazasida boʻladi.</p>
+        </section>
+
+        <section class="pane" data-pane="about">
+          <h3>Ksenos</h3>
+          <p class="pane-lead" data-i18n="set.about">Windows uchun shaxsiy AI chat. Maʼlumotlar shu kompyuterda qoladi.</p>
+          <div class="about-grid">
+            <span data-i18n="set.version">Versiya</span><b>1.0</b>
+            <span data-i18n="set.platform">Platforma</span><b>Windows 10 / 11</b>
+            <span data-i18n="set.storage">Baza</span><b>SQLite · mahalliy</b>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== rename dialog ===================== -->
+  <div class="sheet mini" id="renameSheet" hidden>
+    <div class="mini-card" role="dialog" aria-modal="true" aria-labelledby="renameTitle">
+      <h3 id="renameTitle" data-i18n="rename.title">Suhbat nomi</h3>
+      <input id="renameInput" type="text" maxlength="80" data-i18n-attr="placeholder:rename.placeholder" placeholder="Nom yozing" />
+      <div class="mini-actions">
+        <button class="btn-line ghost" id="renameCancel" type="button" data-i18n="rename.cancel">Bekor qilish</button>
+        <button class="btn-line primary" id="renameSave" type="button" data-i18n="rename.save">Saqlash</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="/messenger/static/app.js"></script>
+</body>
+</html>

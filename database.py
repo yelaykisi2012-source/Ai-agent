@@ -118,11 +118,37 @@ def init_database(settings: Settings | None = None) -> Engine:
     import models  # noqa: F401
 
     Base.metadata.create_all(engine)
+    _add_missing_columns(engine)
     _engine = engine
     _session_factory = sessionmaker(bind=engine, expire_on_commit=False, future=True)
 
     logger.info("Database ready (%s backend)", backend)
     return engine
+
+
+def _add_missing_columns(engine: Engine) -> None:
+    """Add columns that ``create_all`` cannot add to an existing table.
+
+    SQLite refuses a plain ``CREATE TABLE`` when the table already exists, so a
+    new field (the repeat rule of a reminder) needs one explicit ``ALTER``.
+    The list is intentionally tiny and additive: no column is ever dropped or
+    rewritten, so an older database keeps working.
+    """
+    from sqlalchemy import inspect, text
+
+    wanted = {"reminders": {"repeat": "VARCHAR(16) NOT NULL DEFAULT ''"}}
+    inspector = inspect(engine)
+    for table, columns in wanted.items():
+        if table not in inspector.get_table_names():
+            continue
+        existing = {column["name"] for column in inspector.get_columns(table)}
+        missing = {name: ddl for name, ddl in columns.items() if name not in existing}
+        if not missing:
+            continue
+        with engine.begin() as connection:
+            for name, ddl in missing.items():
+                connection.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
+                logger.info("Database migrated: %s.%s added", table, name)
 
 
 def get_engine() -> Engine:

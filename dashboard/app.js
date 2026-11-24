@@ -127,10 +127,58 @@ function renderSummary(summary) {
   $("resume-button").disabled = !status.paused;
 }
 
+function renderRuns(runs) {
+  const list = $("run-list");
+  list.replaceChildren();
+  if (!runs.length) {
+    list.append(el("li", "muted", "No runs recorded yet."));
+    return;
+  }
+  runs.forEach((run) => {
+    const seconds = run.duration_ms == null ? "" : " · " + (run.duration_ms / 1000).toFixed(1) + "s";
+    const label =
+      "#" + run.id + " " + run.trigger + "/" + run.channel + " · " + run.status + seconds +
+      " · " + run.tools + " tool(s)";
+    const item = el(
+      "li",
+      run.status === "failed" ? "error" : run.status === "skipped" ? "warn" : "",
+      label
+    );
+    item.append(el("span", "meta", fmtDate(run.started_at) + (run.error ? " — " + run.error : "")));
+    list.append(item);
+  });
+}
+
+function renderActions(actions) {
+  const list = $("action-list");
+  list.replaceChildren();
+  if (!actions.length) {
+    list.append(el("li", "muted", "No tool calls recorded yet."));
+    return;
+  }
+  actions.forEach((action) => {
+    const args = Object.entries(action.arguments || {})
+      .map(([key, value]) => key + "=" + String(value).slice(0, 60))
+      .join(", ");
+    const label =
+      (action.at || "").replace("T", " ") + " · " + action.tool +
+      (args ? "(" + args + ")" : "") + " · " + action.status;
+    const item = el("li", action.status === "ok" ? "" : "warn", label);
+    if (action.detail) item.append(el("div", "muted", String(action.detail).slice(0, 200)));
+    list.append(item);
+  });
+}
+
 async function refresh() {
   try {
-    const summary = await api("/dashboard/summary");
+    const [summary, runs, activity] = await Promise.all([
+      api("/dashboard/summary"),
+      api("/runs?limit=15"),
+      api("/activity?limit=30"),
+    ]);
     renderSummary(summary);
+    renderRuns(runs);
+    renderActions(activity.actions || []);
   } catch (error) {
     $("agent-detail").textContent = "Dashboard error: " + error.message;
   }

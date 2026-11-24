@@ -82,6 +82,18 @@ def test_sender_role_separates_owner_allowed_guest_and_stranger(
     assert account.sender_role("not-a-number") is None
 
 
+def test_a_second_owner_account_counts_as_the_owner(settings: Settings) -> None:
+    # One person, two accounts: TELEGRAM_OWNER_USER_IDS adds the second one.
+    second = 444
+    settings = _settings(settings, public=False)
+    settings.telegram_owner_user_ids = [second]
+    account = TelegramAccount(settings, client=object())
+
+    assert account.sender_role(OWNER) == "owner"
+    assert account.sender_role(second) == "owner"
+    assert account.sender_role(STRANGER) is None
+
+
 def test_public_chat_lets_any_person_in_as_a_guest(settings: Settings) -> None:
     account = TelegramAccount(_settings(settings, public=True), client=object())
 

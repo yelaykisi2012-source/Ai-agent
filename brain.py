@@ -21,10 +21,15 @@ import asyncio
 import json
 import logging
 import random
+import time
 from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
+
+import api_keys
+import safety
+import verify
 
 from openai import (
     APIConnectionError,
@@ -37,6 +42,7 @@ from openai import (
     RateLimitError,
 )
 
+import owner_profile
 from config import Settings
 from privacy import redact
 from system_prompt import GUEST_RULES, build_system_prompt, voice_rules
@@ -44,7 +50,41 @@ from voice.uzbek import language_report
 
 logger = logging.getLogger(__name__)
 
+#: Spoken when an answer could not be made Uzbek at all. A call must say
+#: something; the log keeps the reason.
+UZBEK_FALLBACK_REPLY = "Kechirasiz, savolni qaytadan aytib yuboring."
+
 # Tool outcome statuses.
+#: Short Uzbek labels for the "what I am doing now" line in Telegram.
+_PROGRESS_LABELS = {
+    "create_task": "vazifa yaratilyapti",
+    "list_tasks": "vazifalar o‘qilyapti",
+    "complete_task": "vazifa yopilyapti",
+    "update_task": "vazifa yangilanyapti",
+    "schedule_reminder": "eslatma qo‘yilyapti",
+    "cancel_reminder": "eslatma bekor qilinyapti",
+    "schedule_call": "qo‘ng‘iroq rejalashtirilyapti",
+    "save_memory": "xotiraga yozilyapti",
+    "retrieve_memory": "xotiradan qidirilyapti",
+    "read_channel": "kanal o‘qilyapti",
+    "search_channel": "kanaldan qidirilyapti",
+    "summarize_link": "havola tekshirilyapti",
+    "join_group": "guruhga qo‘shilyapti",
+    "list_groups": "guruhlar ko‘rilyapti",
+    "web_search": "internetda qidirilyapti",
+    "web_fetch": "sahifa o‘qilyapti",
+    "open_url": "havola ochilyapti",
+    "open_app": "dastur ochilyapti",
+    "play_youtube": "video qo‘yilyapti",
+    "control_screen": "ekranda bajarilyapti",
+    "run_command": "buyruq ishlayapti",
+    "write_file": "fayl yozilyapti",
+    "edit_file": "fayl tahrirlanyapti",
+}
+
+#: Progress notes are useful, but two lines per second is noise.
+_PROGRESS_MIN_SECONDS = 2.0
+
 STATUS_OK = "ok"
 STATUS_UNAVAILABLE = "unavailable"
 STATUS_CONFIRMATION_REQUIRED = "confirmation_required"
@@ -105,7 +145,10 @@ class ToolSpec:
     description: str
     parameters: dict[str, Any]
     handler: Callable[[dict[str, Any]], Awaitable[Any]] | None = None
-    requires_confirmation: bool = False
+    #: A bool for a fixed rule, or a callable when the answer depends on the
+    #: arguments (a read-only shell command needs no confirmation, a delete
+    #: does). A callable that raises is treated as "confirmation required".
+    requires_confirmation: bool | Callable[[dict[str, Any]], bool] = False
     unavailable_reason: str | None = None
 
     @property
@@ -161,6 +204,13 @@ class ToolRegistry:
     ) -> None:
         self._specs: dict[str, ToolSpec] = {spec.name: spec for spec in specs}
         self._confirmation_hook = confirmation_hook
+        #: When True the owner's request is the approval: nothing stops for a
+        #: second "ha" in the middle of a plan. Refusals inside a tool (format,
+        #: shutdown, reading .env) still stand, so this is not a blank cheque.
+        self.auto_approve = False
+        #: Tools that keep asking even then: they reach another person, so the
+        #: owner's "open this, fix that" is not their permission.
+        self.auto_approve_exempt: set[str] = set()
 
     def register(self, spec: ToolSpec) -> None:
         if spec.name in self._specs:
@@ -180,6 +230,24 @@ class ToolRegistry:
         """OpenAI tool schemas for implemented tools only."""
         return [spec.as_openai_schema() for spec in self._specs.values() if spec.available]
 
+    def _needs_confirmation(self, spec: ToolSpec, arguments: dict[str, Any]) -> bool:
+        # A destructive shell command can wipe work that has nothing to do with
+        # the task, so the owner's "open this, fix that" is not its permission.
+        if spec.name == "run_command" and safety.is_dangerous(
+            str(arguments.get("command") or "")
+        ):
+            return True
+        if self.auto_approve and spec.name not in self.auto_approve_exempt:
+            return False
+        flag = spec.requires_confirmation
+        if not callable(flag):
+            return bool(flag)
+        try:
+            return bool(flag(arguments))
+        except Exception:  # noqa: BLE001 - an unclear policy must ask the owner
+            logger.exception("Confirmation policy for %s failed; asking", spec.name)
+            return True
+
     async def execute(
         self,
         name: str,
@@ -195,7 +263,7 @@ class ToolRegistry:
             reason = spec.unavailable_reason or "This capability is not implemented yet."
             return ToolResult(name, STATUS_UNAVAILABLE, f"{reason} Nothing was executed.")
 
-        if spec.requires_confirmation and not confirmed:
+        if self._needs_confirmation(spec, arguments) and not confirmed:
             detail = (
                 "This action changes the outside world and needs explicit user confirmation. "
                 "Nothing was executed."
@@ -203,6 +271,7 @@ class ToolRegistry:
             confirmation_id = None
             if self._confirmation_hook is not None:
                 confirmation_id = self._confirmation_hook(spec, arguments, detail)
+            safety.audit(name, arguments, STATUS_CONFIRMATION_REQUIRED, detail)
             return ToolResult(
                 name,
                 STATUS_CONFIRMATION_REQUIRED,
@@ -215,9 +284,11 @@ class ToolRegistry:
             output = await spec.handler(arguments)
         except Exception:  # noqa: BLE001 - a failing tool must not crash the agent
             logger.exception("Tool %s failed", name)
+            safety.audit(name, arguments, STATUS_ERROR, "handler raised")
             return ToolResult(name, STATUS_ERROR, "The tool failed; the action was not completed.")
 
         detail = str(output) if output not in (None, "") else "Completed successfully."
+        safety.audit(name, arguments, STATUS_OK, detail)
         return ToolResult(name, STATUS_OK, detail)
 
 
@@ -350,6 +421,27 @@ class BrainReply:
 # --------------------------------------------------------------------------- #
 _RETRYABLE = (APITimeoutError, APIConnectionError, RateLimitError, InternalServerError)
 
+#: A 429 that says the day's free quota is gone will not succeed on a retry.
+#: Recognising it saves four requests and several seconds on every turn.
+_HARD_LIMIT_MARKERS = (
+    "per day",
+    "per-day",
+    "daily limit",
+    "free-models-per-day",
+    "insufficient_quota",
+    "quota exceeded",
+)
+
+
+def _is_exhausted_quota(exc: Exception) -> bool:
+    """True for an authentication failure or a 429 the day will not fix."""
+    if isinstance(exc, AuthenticationError):
+        return True
+    if isinstance(exc, RateLimitError):
+        text = str(exc).lower()
+        return any(marker in text for marker in _HARD_LIMIT_MARKERS)
+    return False
+
 
 class AgentBrain:
     """Turns a message plus recent history into a reply."""
@@ -368,6 +460,10 @@ class AgentBrain:
         self._client_injected = client is not None
         self._fallback_client = fallback_client
         self._fallback_client_injected = fallback_client is not None
+        #: While the primary provider is out of quota, going straight to the
+        #: fallback keeps a call responsive instead of failing every utterance.
+        self._primary_cooldown_until = 0.0
+        self._cooldown_reason = ""
         self.tools = registry or default_tool_registry()
         self._system_prompt = system_prompt or build_system_prompt(settings)
 
@@ -391,6 +487,8 @@ class AgentBrain:
         user_message: str,
         voice_mode: bool = False,
         guest: bool = False,
+        use_tools: bool = True,
+        progress: Callable[[str], Awaitable[None]] | None = None,
     ) -> BrainReply:
         """Produce a reply, executing tool calls when the model requests them.
 
@@ -403,8 +501,21 @@ class AgentBrain:
         # Every tool in this registry acts on the owner's own data (tasks,
         # reminders, memory, calls, delivery). A guest may only talk, so the
         # safest possible restriction is to offer no tools to the model.
-        tools: list[dict[str, Any]] = [] if guest else self.tools.model_tools()
+        tools: list[dict[str, Any]] = (
+            [] if guest or not use_tools else self.tools.model_tools()
+        )
         tool_results: list[ToolResult] = []
+        #: Run budget: a reply may use this many tool calls, then it must answer
+        #: with what it already has instead of looping on failing calls.
+        budget = (
+            self._settings.voice_max_tool_calls
+            if voice_mode
+            else self._settings.agent_max_tool_calls
+        )
+        calls_made = 0
+        #: (name, arguments) already executed in this reply. Repeating an
+        #: identical call cannot produce a new answer; it only spends time.
+        executed_calls: set[tuple[str, str]] = set()
         requested_model = self._turn_model(voice_mode)
         model_name = requested_model
         usage_total: dict[str, int] | None = None
@@ -447,9 +558,35 @@ class AgentBrain:
                             STATUS_ERROR,
                             "The model produced invalid tool arguments; nothing was executed.",
                         )
+                    elif (name, json.dumps(arguments, sort_keys=True)) in executed_calls:
+                        logger.info("Refusing a repeated %s call in the same reply", name)
+                        result = ToolResult(
+                            name,
+                            STATUS_ERROR,
+                            "You already called this tool with the same arguments in "
+                            "this reply and the result is above. Use that result and "
+                            "answer now.",
+                        )
+                    elif calls_made >= budget:
+                        logger.warning(
+                            "Tool budget reached (%d calls); refusing %s", budget, name
+                        )
+                        result = ToolResult(
+                            name,
+                            STATUS_ERROR,
+                            f"Tool budget reached ({budget} calls per reply); nothing "
+                            "was executed. Answer the person with what you already "
+                            "have and say what is still left to do.",
+                        )
                     else:
                         result = await self.tools.execute(name, arguments)
+                        calls_made += 1
+                        executed_calls.add((name, json.dumps(arguments, sort_keys=True)))
+                        note = verify.verify_action(name, arguments, result.detail)
+                        if note:
+                            result = ToolResult(name, result.status, f"{result.detail}\n{note}")
                     tool_results.append(result)
+                    await self._report_progress(progress, result, voice_mode)
                     messages.append(
                         {
                             "role": "tool",
@@ -499,6 +636,9 @@ class AgentBrain:
                 text, _changed = redact(text, extra_secrets=self._owner_secrets())
             if voice_mode:
                 text = await self._enforce_spoken_language(messages, text)
+            warning = verify.claim_warning(text, tool_results)
+            if warning:
+                text = f"{text}\n\n{warning}"
             return BrainReply(
                 text=text,
                 model=model_name,
@@ -509,6 +649,26 @@ class AgentBrain:
         raise BrainUnavailable(
             "The model kept requesting tools without producing an answer. Try rephrasing."
         )
+
+    async def _report_progress(
+        self,
+        progress: Callable[[str], Awaitable[None]] | None,
+        result: ToolResult,
+        voice_mode: bool,
+    ) -> None:
+        """Send one short "what I am doing" line, without ever failing the turn."""
+        if progress is None or voice_mode:
+            return
+        now = time.monotonic()
+        if now - getattr(self, "_progress_at", 0.0) < _PROGRESS_MIN_SECONDS:
+            return
+        self._progress_at = now  # noqa: SLF001 - simple turn-local stamp
+        icon = "✅" if result.succeeded else "⚠️"
+        label = _PROGRESS_LABELS.get(result.name, result.name.replace("_", " "))
+        try:
+            await progress(f"{icon} {label}")
+        except Exception:  # noqa: BLE001 - a dropped note must not stop the work
+            logger.info("Progress note could not be delivered", exc_info=True)
 
     # -- internals -------------------------------------------------------- #
     def _build_messages(
@@ -538,9 +698,24 @@ class AgentBrain:
             prompt = f"{prompt}\n\n{voice_rules()}"
         if guest:
             prompt = f"{prompt}\n\n{GUEST_RULES}"
+        else:
+            # What the robot has learned about its owner: their programs, their
+            # hours, what they like and what they asked for lately. Marked as
+            # data inside the block, so a window title cannot give orders.
+            profile = owner_profile.prompt_block()
+            if profile:
+                prompt = f"{prompt}\n\n{profile}"
+        limit = (
+            self._settings.voice_max_tool_calls
+            if voice_mode
+            else self._settings.agent_max_tool_calls
+        )
         return (
             f"{prompt}\n\n"
-            f"Runtime context: the person's local time is {stamp} ({self._settings.timezone})."
+            f"Runtime context: the person's local time is {stamp} ({self._settings.timezone}).\n"
+            f"This reply may use at most {limit} tool "
+            "calls. Do the most useful step first; when the budget is gone, answer "
+            "with what you already have."
         )
 
     def _owner_secrets(self) -> tuple[str, ...]:
@@ -560,9 +735,9 @@ class AgentBrain:
 
         The call rules ask for Uzbek, but a small model can still answer in the
         language it just heard. One rewrite request fixes that. If the rewrite
-        is not Uzbek either, the turn is dropped instead of spoken: Russian or
-        English through an Uzbek voice is worse than a short silence, and the
-        reason stays in the log.
+        is not Uzbek either, a short Uzbek sentence is spoken instead of the
+        foreign answer: on a call, silence reads as a broken assistant and the
+        owner cannot tell why nothing was said. The reason stays in the log.
         """
         report = language_report(text)
         if report.ok:
@@ -582,14 +757,17 @@ class AgentBrain:
         choices = getattr(completion, "choices", None) or []
         rewritten = (choices[0].message.content or "").strip() if choices else ""
         if not rewritten:
-            logger.warning("Uzbek rewrite returned no text; nothing is spoken")
-            raise BrainUnavailable("The answer could not be rewritten in Uzbek.")
+            logger.warning(
+                "Uzbek rewrite returned no text; speaking a short Uzbek fallback"
+            )
+            return UZBEK_FALLBACK_REPLY
         still = language_report(rewritten)
         if not still.ok:
             logger.warning(
-                "Rewrite is still not Uzbek (%s); nothing is spoken", still.detail
+                "Rewrite is still not Uzbek (%s); speaking a short Uzbek fallback",
+                still.detail,
             )
-            raise BrainUnavailable("The answer could not be rewritten in Uzbek.")
+            return UZBEK_FALLBACK_REPLY
         logger.info("Voice reply rewritten into Uzbek (%d chars)", len(rewritten))
         return rewritten
 
@@ -603,7 +781,7 @@ class AgentBrain:
         if self._client is not None:
             return self._client
         if self._settings.llm_provider == "openrouter":
-            key = self._settings.openrouter_key
+            key = api_keys.current_key() or self._settings.openrouter_key
             if not key:
                 raise BrainNotConfigured(
                     "No OpenRouter API key is configured. Set OPENROUTER_API_KEY in .env "
@@ -616,7 +794,7 @@ class AgentBrain:
                 max_retries=0,
             )
             return self._client
-        key = self._settings.openai_key
+        key = api_keys.current_key() or self._settings.openai_key
         if not key:
             raise BrainNotConfigured(
                 "No OpenAI API key is configured. Set OPENAI_API_KEY in .env and restart."
@@ -670,19 +848,31 @@ class AgentBrain:
     ) -> Any:
         provider = self._settings.llm_provider
         kwargs = self._request_kwargs(model or self.model, messages, tools, allow_cap=allow_cap)
+        fallback = self._ensure_fallback_client()
+        fallback_kwargs = self._request_kwargs(
+            self._settings.openai_model, messages, tools, allow_cap=allow_cap
+        )
+        if fallback is not None and self._cooling_down():
+            # The primary provider is known to be out of quota: do not spend
+            # another second (and another failed round trip) asking it again.
+            logger.info(
+                "Chat provider %s is cooling down (%s); using the fallback provider %s",
+                provider,
+                self._cooldown_reason or "recent failure",
+                self._settings.openai_model,
+            )
+            return await self._complete_with(fallback, fallback_kwargs)
         try:
-            return await self._complete_with(self._ensure_client(), kwargs)
-        except BrainError as exc:
-            fallback = self._ensure_fallback_client()
+            return await self._complete_with(
+                self._ensure_client(), kwargs, rotatable=True
+            )
+        except BrainError:
             if fallback is None:
                 raise
             logger.warning(
-                "Chat provider %s failed (%s); falling back to the OPENAI_* provider",
+                "Chat provider %s failed; falling back to the OPENAI_* provider %s",
                 provider,
-                type(exc).__name__,
-            )
-            fallback_kwargs = self._request_kwargs(
-                self._settings.openai_model, messages, tools, allow_cap=allow_cap
+                self._settings.openai_model,
             )
             return await self._complete_with(fallback, fallback_kwargs)
 
@@ -703,12 +893,59 @@ class AgentBrain:
             kwargs["max_tokens"] = self._settings.llm_max_tokens
         return kwargs
 
-    async def _complete_with(self, client: Any, kwargs: dict[str, Any]) -> Any:
+    def _cooling_down(self) -> bool:
+        return self._primary_cooldown_until > time.monotonic()
+
+    def _cool_down(self, reason: str) -> None:
+        """Stop asking the primary provider until the cooldown expires."""
+        seconds = self._settings.llm_fallback_cooldown_seconds
+        self._cooldown_reason = reason
+        if seconds <= 0:
+            self._primary_cooldown_until = 0.0
+            return
+        self._primary_cooldown_until = time.monotonic() + seconds
+
+    def _rotate_client(self) -> Any | None:
+        """Switch to the next key in the pool and rebuild the client.
+
+        Only the configured provider's own client rotates: an injected client
+        (tests) and the OPENAI_* fallback are left alone.
+        """
+        if self._client_injected:
+            return None
+        rotated = api_keys.rotate("the key in use hit its limit")
+        if not rotated:
+            return None
+        self._client = None
+        # The new key is fresh, so give the provider another chance at once.
+        self._primary_cooldown_until = 0.0
+        try:
+            return self._ensure_client()
+        except BrainError:
+            return None
+
+    async def _complete_with(
+        self, client: Any, kwargs: dict[str, Any], *, rotatable: bool = False
+    ) -> Any:
         attempts = self._settings.openai_max_retries + 1
         for attempt in range(1, attempts + 1):
             try:
                 return await client.chat.completions.create(**kwargs)
             except _RETRYABLE as exc:
+                if _is_exhausted_quota(exc):
+                    if rotatable:
+                        next_client = self._rotate_client()
+                        if next_client is not None:
+                            client = next_client
+                            continue
+                    # A daily quota or a rejected key does not heal in 2.5 s:
+                    # retrying only delays the fallback and the answer.
+                    self._cool_down(type(exc).__name__)
+                    logger.error(
+                        "Chat provider hit a hard limit (%s); not retrying",
+                        type(exc).__name__,
+                    )
+                    raise self._translate_error(exc) from exc
                 error = self._translate_error(exc)
                 if attempt >= attempts:
                     logger.error(
@@ -729,7 +966,19 @@ class AgentBrain:
                 if delay > 0:
                     await asyncio.sleep(delay)
             except (AuthenticationError, BadRequestError, APIStatusError) as exc:
-                logger.error("OpenAI rejected the request: %s", type(exc).__name__, exc_info=True)
+                if _is_exhausted_quota(exc):
+                    if rotatable:
+                        next_client = self._rotate_client()
+                        if next_client is not None:
+                            client = next_client
+                            continue
+                    self._cool_down(type(exc).__name__)
+                logger.error(
+                    "OpenAI rejected the request with model=%s: %s",
+                    kwargs.get("model"),
+                    type(exc).__name__,
+                    exc_info=True,
+                )
                 raise self._translate_error(exc) from exc
 
         # Unreachable: the loop either returns or raises.
@@ -794,21 +1043,39 @@ def _parse_arguments(raw: str | None) -> dict[str, Any] | None:
     return parsed
 
 
+def _tool_call_payload(call: Any) -> dict[str, Any]:
+    """Rebuild one tool call exactly as the provider sent it.
+
+    Gemini 3 attaches ``extra_content.google.thought_signature`` to every
+    function call and rejects (HTTP 400) the follow-up request if that field is
+    not sent back. The OpenAI SDK keeps unknown fields in ``model_extra``, so
+    both places are checked and the value is passed through untouched.
+    """
+    payload: dict[str, Any] = {
+        "id": call.id,
+        "type": "function",
+        "function": {
+            "name": call.function.name,
+            "arguments": call.function.arguments,
+        },
+    }
+    extra = getattr(call, "extra_content", None)
+    if extra is None:
+        model_extra = getattr(call, "model_extra", None)
+        if isinstance(model_extra, dict):
+            extra = model_extra.get("extra_content")
+    if extra:
+        payload["extra_content"] = extra
+    return payload
+
+
 def _assistant_tool_message(message: Any, tool_calls: Sequence[Any]) -> dict[str, Any]:
     return {
         "role": "assistant",
-        "content": getattr(message, "content", None),
-        "tool_calls": [
-            {
-                "id": call.id,
-                "type": "function",
-                "function": {
-                    "name": call.function.name,
-                    "arguments": call.function.arguments,
-                },
-            }
-            for call in tool_calls
-        ],
+        # An empty string, not None: some OpenAI-compatible providers (Gemini)
+        # reject a tool-call message whose content is null with HTTP 400.
+        "content": getattr(message, "content", None) or "",
+        "tool_calls": [_tool_call_payload(call) for call in tool_calls],
     }
 
 

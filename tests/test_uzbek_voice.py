@@ -114,12 +114,16 @@ def test_answer_that_stays_foreign_is_dropped_not_spoken(settings: Settings) -> 
     )
     brain = AgentBrain(settings, client=client)
 
-    with pytest.raises(BrainUnavailable):
-        asyncio.run(brain.reply(history=[], user_message="Salom", voice_mode=True))
+    reply = asyncio.run(brain.reply(history=[], user_message="Salom", voice_mode=True))
+
+    # Never silent: one short Uzbek line is spoken instead of the foreign text.
+    assert reply.text == "Kechirasiz, savolni qaytadan aytib yuboring."
     assert len(client.requests) == 2
 
 
-def test_a_turn_with_no_uzbek_answer_stays_silent(settings: Settings, caplog) -> None:
+def test_a_turn_with_no_uzbek_answer_speaks_a_short_fallback(
+    settings: Settings, caplog
+) -> None:
     client = FakeOpenAI(
         [text_completion("Привет, как дела?"), text_completion("Извини, я не понял")]
     )
@@ -132,7 +136,7 @@ def test_a_turn_with_no_uzbek_answer_stays_silent(settings: Settings, caplog) ->
     with TestClient(app):
         answer = asyncio.run(runtime.handle_call_message("Salom"))
 
-    assert answer is None  # silence instead of a Russian sentence
+    assert answer == "Kechirasiz, savolni qaytadan aytib yuboring."
     assert client.requests  # the rewrite really was attempted
 
 
@@ -283,7 +287,40 @@ def test_foreign_text_fails_the_guard(text: str) -> None:
 # --------------------------------------------------------------------------- #
 # 7. TTS never receives another language
 # --------------------------------------------------------------------------- #
-def test_a_russian_reply_is_not_sent_to_tts(settings: Settings, caplog) -> None:
+def test_a_hindi_reply_is_not_accepted_as_uzbek(caplog) -> None:
+    text = "नमस्ते, मैं आपकी मदद कर सकता हूँ। आप कैसे हैं?"
+
+    report = language_report(text)
+
+    assert report.ok is False
+    assert "script" in report.reasons
+    assert report.other_script_ratio > 0.9
+
+
+def test_other_non_latin_scripts_are_rejected(caplog) -> None:
+    samples = [
+        "مرحبا، كيف حالك اليوم؟",  # Arabic
+        "你好，今天怎么样？",  # Chinese
+        "こんにちは、元気ですか？",  # Japanese
+        "안녕하세요, 어떻게 지내세요?",  # Korean
+        "สวัสดีครับ สบายดีไหม",  # Thai
+    ]
+
+    for text in samples:
+        report = language_report(text)
+        assert report.ok is False, text
+        assert "script" in report.reasons, text
+
+
+def test_one_borrowed_arabic_word_does_not_fail_an_uzbek_sentence() -> None:
+    text = "Ertaga «Insha Alloh» deb aytaman, reja o‘zgarmaydi."
+
+    assert language_report(text).ok is True
+
+
+def test_a_russian_reply_is_replaced_by_a_short_uzbek_fallback(
+    settings: Settings, caplog
+) -> None:
     asyncio.run(_speak_scenario(_call_settings(settings), "Привет, как дела?", caplog))
 
 
@@ -306,8 +343,10 @@ async def _speak_scenario(settings: Settings, text: str, caplog) -> None:
         frames = await session._speak(text)
     await session.hangup()
 
-    assert frames == 0
-    assert speech.synthesized == []
+    # Silence reads as a broken assistant on a call, so a short Uzbek line is
+    # spoken instead of dropping the turn entirely.
+    assert frames > 0
+    assert speech.synthesized == ["Kechirasiz, savolni qaytadan aytib yuboring."]
     logged = " ".join(record.getMessage() for record in caplog.records)
     assert "not Uzbek" in logged or "nothing in this reply was Uzbek" in logged
 

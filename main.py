@@ -11,10 +11,13 @@ Run locally:
 from __future__ import annotations
 
 import base64
+import io
 import logging
+import os
 import secrets
 import threading
 import time
+import zipfile
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -36,10 +39,11 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select, text
 
 import memory
+import safety
 from brain import BrainError
 from config import PROJECT_ROOT, Settings, get_settings
 from database import (
@@ -50,9 +54,11 @@ from database import (
     record_event,
     session_scope,
 )
+from integrations.apyhub import ApyHubError
 from logging_setup import configure_logging
 from runtime import AgentRuntime, ChatOutcome
 from schemas import (
+    AgentRunOut,
     CallList,
     CallOut,
     ChatRequest,
@@ -84,6 +90,7 @@ from schemas import (
     ToolExecutionOut,
     UsageOut,
     VoiceChatResponse,
+    VoiceTranscriptResponse,
 )
 from voice.audio import AudioError, ensure_upload, to_ogg_opus
 from voice.realtime import describe_protocol, serve_voice_session
@@ -93,7 +100,35 @@ __version__ = "0.3.0"
 logger = logging.getLogger(__name__)
 
 DASHBOARD_DIR = PROJECT_ROOT / "dashboard"
+WEBAPP_DIR = PROJECT_ROOT / "web" / "mini-app"
+MESSENGER_DIR = PROJECT_ROOT / "web" / "messenger"
 _LOOPBACK_HOSTS = {"127.0.0.1", "::1", "localhost", "testclient"}
+
+def _build_app_archive() -> bytes:
+    """The portable app as one ZIP, without secrets, databases or the venv."""
+    from packaging_win import build_archive_bytes
+
+    return build_archive_bytes()
+
+
+def _build_installer() -> Path:
+    """The Windows installer .exe the download button serves."""
+    from packaging_win import build_installer_exe
+
+    return build_installer_exe()
+
+
+class CompanionStateRequest(BaseModel):
+    """A state the companion should show, plus one short line about why."""
+
+    state: str = Field(min_length=1, max_length=40)
+    detail: str = Field(default="", max_length=200)
+
+
+class CompanionDetailRequest(BaseModel):
+    """Optional note shown next to the companion's state."""
+
+    detail: str = Field(default="", max_length=200)
 
 
 # --------------------------------------------------------------------------- #
@@ -216,6 +251,67 @@ def create_app(
     if app_settings.dashboard_enabled and DASHBOARD_DIR.is_dir():
         app.mount("/static", StaticFiles(directory=DASHBOARD_DIR), name="static")
 
+    if WEBAPP_DIR.is_dir():
+        app.mount("/mini-app/static", StaticFiles(directory=WEBAPP_DIR), name="mini-app")
+
+        @app.get("/mini-app", include_in_schema=False)
+        def mini_app() -> FileResponse:
+            index = WEBAPP_DIR / "index.html"
+            if not index.is_file():
+                raise HTTPException(status_code=404, detail="mini app missing")
+            return FileResponse(index)
+
+    from messenger_api import router as messenger_router
+
+    app.include_router(messenger_router, prefix="/messenger/api", tags=["messenger"])
+
+    if MESSENGER_DIR.is_dir():
+        app.mount(
+            "/messenger/static",
+            StaticFiles(directory=MESSENGER_DIR),
+            name="messenger",
+        )
+
+        @app.get("/messenger", include_in_schema=False)
+        def messenger_page() -> FileResponse:
+            index = MESSENGER_DIR / "index.html"
+            if not index.is_file():
+                raise HTTPException(status_code=404, detail="messenger missing")
+            return FileResponse(index)
+
+    @app.get("/download/ksenos-setup.exe", include_in_schema=False)
+    def download_installer() -> FileResponse:
+        try:
+            installer = _build_installer()
+        except (OSError, RuntimeError) as exc:
+            logger.warning("installer build failed: %s", exc)
+            raise HTTPException(
+                status_code=500, detail="the installer could not be built"
+            ) from exc
+        return FileResponse(
+            installer,
+            media_type="application/vnd.microsoft.portable-executable",
+            filename="Ksenos-Setup.exe",
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @app.get("/download/ksenos-app.zip", include_in_schema=False)
+    def download_app() -> Response:
+        try:
+            payload = _build_app_archive()
+        except OSError as exc:
+            logger.warning("download archive failed: %s", exc)
+            raise HTTPException(status_code=500, detail="archive could not be built") from exc
+        return Response(
+            content=payload,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": 'attachment; filename="Ksenos-Messenger.zip"',
+                "Content-Length": str(len(payload)),
+                "Cache-Control": "no-store",
+            },
+        )
+
     # ------------------------------------------------------------------ #
     # System
     # ------------------------------------------------------------------ #
@@ -227,9 +323,14 @@ def create_app(
             "health": "/health",
             "docs": "/docs",
             "dashboard": "/dashboard",
+            "mini_app": "/mini-app",
+            "download": "/download/ksenos-setup.exe",
             "chat": "/chat",
             "tasks": "/tasks",
+            "runs": "/runs",
             "voice": "/voice/chat",
+            "images": "/images/remove-background",
+            "companion": "/companion/state",
         }
 
     @app.get("/health", response_model=HealthResponse, tags=["system"])
@@ -680,9 +781,131 @@ def create_app(
         ended, detail = await agent.calls.hangup()
         return {"ended": ended, "detail": detail}
 
+    # -- computer mode -------------------------------------------------- #
+    @app.get(
+        "/computer-mode/state",
+        tags=["computer"],
+        dependencies=[Depends(guard)],
+    )
+    async def computer_mode_state(
+        agent: AgentRuntime = Depends(get_runtime),
+    ) -> dict[str, Any]:
+        """What the computer-mode window shows; also closes a finished mode."""
+        await agent.computer_mode.refresh()
+        return agent.computer_mode.state()
+
+    @app.post(
+        "/computer-mode/stop",
+        tags=["computer"],
+        dependencies=[Depends(guard)],
+    )
+    async def computer_mode_stop(
+        agent: AgentRuntime = Depends(get_runtime),
+    ) -> dict[str, Any]:
+        stopped, detail = await agent.computer_mode.stop()
+        return {"stopped": stopped, "detail": detail}
+
+    # -- desktop companion ----------------------------------------------- #
+    @app.get(
+        "/companion/state",
+        tags=["companion"],
+        dependencies=[Depends(guard)],
+    )
+    def companion_state(
+        agent: AgentRuntime = Depends(get_runtime),
+    ) -> dict[str, Any]:
+        """What the pixel companion draws; polled by its own process."""
+        return agent.companion.state()
+
+    @app.post(
+        "/companion/state",
+        tags=["companion"],
+        dependencies=[Depends(guard)],
+    )
+    def companion_set_state(
+        payload: CompanionStateRequest,
+        agent: AgentRuntime = Depends(get_runtime),
+    ) -> dict[str, Any]:
+        """Put the companion in a state by name (thinking, speaking, happy…)."""
+        if not agent.companion.set_state(payload.state, payload.detail):
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "unknown companion state; use one of: "
+                    "idle, idle_cute, thinking, speaking, listening, happy, sad, "
+                    "surprised, sleep, walk, run, fly, hover, take_off, land, "
+                    "follow_mouse, jump, click_reaction"
+                ),
+            )
+        return agent.companion.state()
+
+    @app.post(
+        "/companion/show",
+        tags=["companion"],
+        dependencies=[Depends(guard)],
+    )
+    def companion_show(
+        payload: CompanionDetailRequest | None = None,
+        agent: AgentRuntime = Depends(get_runtime),
+    ) -> dict[str, Any]:
+        """Put the pet on screen now."""
+        agent.companion.show((payload.detail if payload else "") or "egasi ko‘rsatdi")
+        return agent.companion.state()
+
+    @app.post(
+        "/companion/hide",
+        tags=["companion"],
+        dependencies=[Depends(guard)],
+    )
+    def companion_hide(
+        payload: CompanionDetailRequest | None = None,
+        agent: AgentRuntime = Depends(get_runtime),
+    ) -> dict[str, Any]:
+        """Take the pet off the screen until it is shown again."""
+        agent.companion.hide((payload.detail if payload else "") or "egasi yashirdi")
+        return agent.companion.state()
+
+    @app.post(
+        "/companion/event",
+        tags=["companion"],
+        dependencies=[Depends(guard)],
+    )
+    def companion_event(
+        payload: CompanionStateRequest,
+        agent: AgentRuntime = Depends(get_runtime),
+    ) -> dict[str, Any]:
+        """Drive the pet with a real event name (ai_thinking_started, …)."""
+        if not agent.companion.event(payload.state, payload.detail):
+            raise HTTPException(status_code=422, detail="unknown companion event")
+        return agent.companion.state()
+
+    # -- animated cursor ------------------------------------------------- #
+    @app.get(
+        "/gui/cursor/state",
+        tags=["computer"],
+        dependencies=[Depends(guard)],
+    )
+    def gui_cursor_state(
+        agent: AgentRuntime = Depends(get_runtime),
+    ) -> dict[str, Any]:
+        """What the animated cursor layer draws; polled by its own process."""
+        return agent.gui.cursor_state()
+
     @app.get("/telegram/status", response_model=TelegramStatus, tags=["telegram"])
     def telegram_status(agent: AgentRuntime = Depends(get_runtime)) -> TelegramStatus:
         return TelegramStatus(**agent.telegram.status())
+
+    # ------------------------------------------------------------------ #
+    # Agent runs
+    # ------------------------------------------------------------------ #
+    @app.get("/runs", response_model=list[AgentRunOut], tags=["runs"])
+    async def list_agent_runs(
+        limit: int = Query(default=20, ge=1, le=100),
+        agent: AgentRuntime = Depends(get_runtime),
+    ) -> list[AgentRunOut]:
+        """What the agent actually did: trigger, channel, result and duration."""
+        rows = await to_thread.run_sync(agent.runs.list, limit)
+        return [AgentRunOut.model_validate(row) for row in rows]
 
     # ------------------------------------------------------------------ #
     # Control
@@ -763,6 +986,38 @@ def create_app(
         )
 
     @app.post(
+        "/voice/transcribe",
+        response_model=VoiceTranscriptResponse,
+        tags=["voice"],
+        dependencies=[Depends(guard)],
+        responses={400: {"model": ErrorResponse}, 502: {"model": ErrorResponse}},
+    )
+    async def voice_transcribe(
+        file: UploadFile = File(..., description="Recorded speech (wav, webm, ogg, mp3)."),
+        agent: AgentRuntime = Depends(get_runtime),
+    ) -> VoiceTranscriptResponse:
+        """Only the transcript, for a client that owns its conversation.
+
+        The Windows mini messenger keeps one chat thread open: it records the
+        owner, asks for the words here, then sends them to ``POST /chat`` with
+        its own ``conversation_id``. ``/voice/chat`` would start a new thread on
+        every turn and lose that context.
+        """
+        audio = await file.read()
+        try:
+            ensure_upload(file.filename, audio, app_settings.voice_max_upload_mb)
+            text = await agent.speech.transcribe(
+                audio, filename=file.filename or "utterance.wav"
+            )
+        except AudioError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except VoiceError as exc:
+            raise HTTPException(
+                status_code=exc.status_code, detail=exc.public_message
+            ) from exc
+        return VoiceTranscriptResponse(text=text.strip())
+
+    @app.post(
         "/voice/speak",
         tags=["voice"],
         dependencies=[Depends(guard)],
@@ -820,6 +1075,51 @@ def create_app(
         return describe_protocol()
 
     # ------------------------------------------------------------------ #
+    # Images
+    # ------------------------------------------------------------------ #
+    @app.post(
+        "/images/remove-background",
+        tags=["images"],
+        dependencies=[Depends(guard)],
+        responses={
+            200: {"content": {"image/png": {}}, "description": "Transparent PNG cutout"},
+            400: {"model": ErrorResponse},
+            502: {"model": ErrorResponse},
+            503: {"model": ErrorResponse},
+        },
+    )
+    async def remove_image_background(
+        file: UploadFile = File(
+            ..., description="Raster image: PNG, JPEG, WebP, GIF, BMP or TIFF."
+        ),
+        agent: AgentRuntime = Depends(get_runtime),
+    ) -> Response:
+        """Remove one uploaded image's background; returns the PNG bytes.
+
+        The upload is validated before anything is sent, and the original bytes
+        are only ever read: nothing on disk is changed by this endpoint.
+        """
+        data = await file.read()
+        try:
+            cutout = await agent.images.remove_background(data)
+        except ApyHubError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+
+        stem = Path(file.filename or "image").stem
+        safe = "".join(
+            char for char in stem if char.isascii() and (char.isalnum() or char in "-_")
+        ) or "image"
+        checked = "" if cutout.transparent_pixels is None else str(cutout.transparent_pixels)
+        return Response(
+            content=cutout.png,
+            media_type="image/png",
+            headers={
+                "Content-Disposition": f'inline; filename="{safe}-no-bg.png"',
+                "X-Image-Transparent-Pixels": checked,
+            },
+        )
+
+    # ------------------------------------------------------------------ #
     # Dashboard
     # ------------------------------------------------------------------ #
     @app.get("/dashboard", include_in_schema=False)
@@ -875,6 +1175,16 @@ def create_app(
             recent_calls=[CallOut.model_validate(row) for row in calls],
             memory_total=memories.get("total", 0),
         )
+
+    @app.get("/activity", tags=["dashboard"])
+    async def activity(limit: int = 40) -> dict[str, Any]:
+        """The newest tool calls, exactly as they were executed.
+
+        ``data/audit.jsonl`` is written by the tool registry itself, so this
+        list is what really ran — not what a summary remembered.
+        """
+        count = max(1, min(int(limit or 40), 200))
+        return {"actions": await to_thread.run_sync(safety.recent_audit, count)}
 
     return app
 

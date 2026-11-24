@@ -79,6 +79,35 @@ async def _echo_guard_scenario(settings: Settings) -> None:
 
 
 # --------------------------------------------------------------------------- #
+# Long speech: answered at the cap, never thrown away
+# --------------------------------------------------------------------------- #
+def test_endless_speech_is_answered_at_the_cap(settings: Settings) -> None:
+    asyncio.run(_endless_speech(_call_settings(settings)))
+
+
+async def _endless_speech(settings: Settings) -> None:
+    """A microphone above the noise floor never ends an utterance by itself."""
+    speech = _ScriptedSpeech(["uzun gap"])
+
+    async def handler(text: str) -> str:
+        return f"javob: {text}"
+
+    session = _session(settings, speech, handler)
+    await session.place()
+    session._listen_task = asyncio.create_task(session._listen_audio())
+
+    # 13 seconds of continuous speech, past the 12 s cap, no pause at all.
+    for _ in range(1300):
+        session.push_frames(555, "PLAYBACK", "MICROPHONE", _loud_frame())
+        await asyncio.sleep(0)
+
+    assert await _wait_for(lambda: bool(speech.synthesized), attempts=120)
+    assert speech.synthesized == ["javob: uzun gap"]
+    assert session.status()["utterances_dropped"] == 0
+    await session.hangup()
+
+
+# --------------------------------------------------------------------------- #
 # Queue: a stale utterance is skipped, not answered late
 # --------------------------------------------------------------------------- #
 def test_stale_utterance_is_skipped_instead_of_answered_late(

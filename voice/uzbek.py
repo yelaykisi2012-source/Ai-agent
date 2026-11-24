@@ -437,6 +437,43 @@ _FOREIGN_WORDS = _ENGLISH_WORDS | _OTHER_LANGUAGE_WORDS
 #: high so a single borrowed name or brand inside an Uzbek sentence still passes.
 CYRILLIC_LIMIT = 0.35
 FOREIGN_WORD_LIMIT = 0.35
+#: A reply mostly written in Devanagari, Arabic, CJK, Hangul or another
+#: non-Latin script is not Uzbek. Hindi in particular slipped through before:
+#: it has no Cyrillic and no English words, so both older checks passed it.
+OTHER_SCRIPT_LIMIT = 0.2
+
+#: Unicode blocks no Uzbek reply should be written in (Cyrillic has its own
+#: ratio above, and Latin is the expected script).
+_OTHER_SCRIPT_RANGES = (
+    (0x0590, 0x05FF),  # Hebrew
+    (0x0600, 0x06FF),  # Arabic
+    (0x0700, 0x074F),  # Syriac
+    (0x0900, 0x097F),  # Devanagari (Hindi, Marathi, Nepali)
+    (0x0980, 0x09FF),  # Bengali
+    (0x0A00, 0x0A7F),  # Gurmukhi
+    (0x0A80, 0x0AFF),  # Gujarati
+    (0x0B00, 0x0B7F),  # Oriya
+    (0x0B80, 0x0BFF),  # Tamil
+    (0x0C00, 0x0C7F),  # Telugu
+    (0x0C80, 0x0CFF),  # Kannada
+    (0x0D00, 0x0D7F),  # Malayalam
+    (0x0E00, 0x0E7F),  # Thai
+    (0x0E80, 0x0EFF),  # Lao
+    (0x1000, 0x109F),  # Myanmar
+    (0x10A0, 0x10FF),  # Georgian
+    (0x1100, 0x11FF),  # Hangul Jamo
+    (0x3040, 0x30FF),  # Hiragana / Katakana
+    (0x3400, 0x4DBF),  # CJK extension A
+    (0x4E00, 0x9FFF),  # CJK
+    (0xAC00, 0xD7AF),  # Hangul syllables
+    (0xF900, 0xFAFF),  # CJK compatibility
+)
+
+
+def _is_other_script(character: str) -> bool:
+    """True for a letter of a script an Uzbek answer is never written in."""
+    code = ord(character)
+    return any(start <= code <= end for start, end in _OTHER_SCRIPT_RANGES)
 
 
 @dataclass(frozen=True)
@@ -448,6 +485,7 @@ class LanguageReport:
     cyrillic_ratio: float = 0.0
     foreign_word_ratio: float = 0.0
     letters: int = 0
+    other_script_ratio: float = 0.0
 
     @property
     def detail(self) -> str:
@@ -457,23 +495,28 @@ class LanguageReport:
 def language_report(text: str) -> LanguageReport:
     """Classify a reply as Uzbek or not.
 
-    This is a heuristic on the text itself: it counts Cyrillic letters and
-    everyday English words against everything else. Text with no letters at
-    all (digits, punctuation) is accepted, because there is nothing to
-    translate and normalisation has already spelled the numbers out.
+    This is a heuristic on the text itself: it counts Cyrillic letters,
+    everyday English words and letters of other scripts (Devanagari, Arabic,
+    CJK, Hangul, ...) against everything else. Text with no letters at all
+    (digits, punctuation) is accepted, because there is nothing to translate
+    and normalisation has already spelled the numbers out.
     """
     body = text or ""
     letters = _LETTER_RE.findall(body)
     if not letters:
-        return LanguageReport(True, (), 0.0, 0.0, 0)
+        return LanguageReport(True, (), 0.0, 0.0, 0, 0.0)
 
     cyrillic_ratio = len(_CYRILLIC_RE.findall(body)) / len(letters)
     words = [w.strip("'").lower() for w in _LATIN_WORD_RE.findall(body)]
     foreign_words = sum(1 for word in words if word in _FOREIGN_WORDS)
     foreign_ratio = foreign_words / len(words) if words else 0.0
+    other_script = sum(1 for letter in letters if _is_other_script(letter))
+    other_ratio = other_script / len(letters)
     reasons: list[str] = []
     if cyrillic_ratio > CYRILLIC_LIMIT:
         reasons.append("cyrillic")
+    if other_script >= 2 and other_ratio > OTHER_SCRIPT_LIMIT:
+        reasons.append("script")
     # Two foreign words are required: a single "ok" inside an otherwise Uzbek
     # sentence must not silence the whole answer.
     if foreign_ratio > FOREIGN_WORD_LIMIT and foreign_words >= 2:
@@ -484,6 +527,7 @@ def language_report(text: str) -> LanguageReport:
         cyrillic_ratio=round(cyrillic_ratio, 3),
         foreign_word_ratio=round(foreign_ratio, 3),
         letters=len(letters),
+        other_script_ratio=round(other_ratio, 3),
     )
 
 

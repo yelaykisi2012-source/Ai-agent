@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="uz-Latn">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#08080a" />
+  <title data-i18n="meta.title">Ksenos Messenger — Windows uchun shaxsiy chat</title>
+  <meta name="description" content="Ksenos Messenger — Windows uchun yengil chat. Yozing yoki qoʻngʻiroq qiling: kontaktlar yoʻq, faqat siz va AI. Ish stolida jonli robot hamroh." data-i18n-attr="content:meta.description" />
+  <link rel="icon" href="/mini-app/static/messenger.ico" sizes="any" />
+  <link rel="stylesheet" href="/mini-app/static/styles.css" />
+</head>
+<body>
+  <div class="scroll-progress" aria-hidden="true"><span id="scrollBar"></span></div>
+  <div class="atmosphere" aria-hidden="true">
+    <span class="glow glow-warm"></span>
+    <span class="glow glow-cool"></span>
+    <span class="rules"></span>
+    <span class="noise"></span>
+  </div>
+
+  <header class="nav" id="nav">
+    <a class="brand" href="#top" aria-label="Ksenos Messenger">
+      <span class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M6 4v16M6 12.2 17.6 3.8M6 12.2 18.4 20.2" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <span class="brand-name">Ksenos<span>Messenger</span></span>
+    </a>
+
+    <nav class="nav-links" aria-label="Boʻlimlar" data-i18n-aria="nav.aria">
+      <a href="#tour" data-i18n="nav.tour">Koʻrinish</a>
+      <a href="#why" data-i18n="nav.why">Nega Ksenos</a>
+      <a href="#pin" data-i18n="nav.pin">Kirish kodi</a>
+      <a href="#roadmap" data-i18n="nav.roadmap">Reja</a>
+    </nav>
+
+    <div class="nav-right">
+      <span class="nav-meta" data-i18n="nav.version">v1.0 · Windows</span>
+      <div class="lang-switch" role="group" aria-label="Til" id="langSwitch">
+        <button type="button" data-lang="uz">UZ</button>
+        <button type="button" data-lang="ru">RU</button>
+        <button type="button" data-lang="en">EN</button>
+      </div>
+      <a class="pill pill-cream pill-sm" href="#download">
+        <span data-i18n="nav.download">Yuklab olish</span>
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 19.5h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <main id="top">
+    <!-- ===================== HERO ===================== -->
+    <section class="hero" id="download">
+      <div class="hero-copy">
+        <p class="eyebrow enter" style="--d:0ms">
+          <span class="rule"></span>
+          <span data-i18n="hero.eyebrow">Ksenos Messenger — Windows 10 / 11</span>
+        </p>
+
+        <h1 class="enter" style="--d:60ms">
+          <span class="h-line" data-i18n="hero.h1a">Yozing.</span>
+          <span class="h-line" data-i18n="hero.h1b">Gapiring.</span>
+          <span class="h-line serif" data-i18n="hero.h1c">U yoningizda.</span>
+        </h1>
+
+        <p class="lede enter" style="--d:140ms" data-i18n="hero.lede">
+          Kontaktlar yoʻq, guruhlar yoʻq, ortiqcha hech narsa yoʻq.
+          Kompyuteringizda faqat siz va sizning AI yordamchingiz —
+          yozishadi, gaplashadi va ish stolida birga yuradi.
+        </p>
+
+        <div class="cta-row enter" style="--d:220ms">
+          <button class="pill pill-cream pill-lg download-btn" id="downloadBtn" type="button">
+            <span class="dl-face">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 19.5h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span class="dl-label" data-i18n="cta.download">Yuklab olish</span>
+              <span class="dl-size" data-i18n="cta.badge">bepul</span>
+            </span>
+            <span class="dl-progress" aria-hidden="true">
+              <span class="dl-fill" id="dlFill"></span>
+              <span class="dl-pct" id="dlPct">0%</span>
+            </span>
+          </button>
+
+          <a class="pill pill-ghost pill-lg" href="#tour">
+            <span data-i18n="cta.tour">Koʻrinishni koʻrish</span>
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h13m0 0-4.5-4.5M18 12l-4.5 4.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </a>
+        </div>
+
+        <p class="fine print enter" style="--d:260ms" id="downloadNote">
+          <span data-i18n="fine.size">2.9 MB</span><i></i><span data-i18n="fine.exe">.exe oʻrnatuvchi</span><i></i><span data-i18n="fine.install">oʻrnatish 1 daqiqa</span>
+        </p>
+      </div>
+
+      <!-- product stage -->
+      <div class="stage enter" style="--d:180ms">
+        <div class="stage-glow" aria-hidden="true"></div>
+
+        <div class="app-window" id="appWindow">
+          <div class="win-bar">
+            <span class="win-dots"><i></i><i></i><i></i></span>
+            <span class="win-title">Ksenos Messenger</span>
+            <span class="win-controls"><i>—</i><i>▢</i><i class="close">✕</i></span>
+          </div>
+
+          <div class="win-body">
+            <aside class="win-rail" aria-hidden="true">
+              <span class="rail-dot active"></span>
+              <span class="rail-dot"></span>
+              <span class="rail-dot"></span>
+              <span class="rail-spacer"></span>
+              <span class="rail-avatar">K</span>
+            </aside>
+
+            <div class="win-main">
+              <div class="chat-head">
+                <span class="avatar">
+                  <img src="/mini-app/static/assets/idle-0.png" alt="" id="avatarSprite" />
+                  <span class="presence"></span>
+                </span>
+                <span class="chat-id">
+                  <b>Ksenos</b>
+                  <small data-i18n="chat.online">online · faqat agent</small>
+                </span>
+                <span class="chat-actions">
+                  <span class="ca ca-call">☎</span>
+                  <span class="ca">⋯</span>
+                </span>
+              </div>
+
+              <div class="chat-thread">
+                <p class="thread-note" data-i18n="chat.today">Bugun</p>
+                <div class="msg in"><span data-i18n="chat.m1">Salom! Reja tayyormi?</span><span>09:41</span></div>
+                <div class="msg out"><span data-i18n="chat.m2">Ertangi uchrashuvni eslatib qoʻy.</span><span>09:41</span></div>
+                <div class="msg in"><span data-i18n="chat.m3">Yozib qoʻydim — ertaga 9:00 da eslataman.</span><span>09:42</span></div>
+                <div class="typing"><i></i><i></i><i></i></div>
+              </div>
+
+              <div class="composer">
+                <span data-i18n="chat.composer">Xabar yozing…</span>
+                <span class="send">➤</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- the companion standing on the window edge -->
+        <img class="robot" src="/mini-app/static/assets/idle-1.png" alt="" id="robotSprite" />
+        <div class="robot-shadow" aria-hidden="true"></div>
+
+        <div class="tag tag-pin">
+          <span class="tag-ico">🔒</span>
+          <span><b data-i18n="tag.pin">4 xonali kod</b><small data-i18n="tag.pinSub">oʻzgarmaydi</small></span>
+        </div>
+        <div class="tag tag-local">
+          <span class="led"></span>
+          <span><b data-i18n="tag.local">Mahalliy</b><small data-i18n="tag.localSub">bulutsiz</small></span>
+        </div>
+      </div>
+
+      <a class="scroll-cue" href="#tour" aria-label="Pastga" data-i18n-aria="cue.down">
+        <span data-i18n="cue.label">Pastga</span>
+        <i></i>
+      </a>
+    </section>
+
+    <!-- ===================== MARQUEE ===================== -->
+    <div class="ticker" aria-hidden="true">
+      <div class="ticker-track">
+        <span data-i18n="ticker.typing">Yozish</span><em>/</em>
+        <span data-i18n="ticker.call">Ovozli qoʻngʻiroq</span><em>/</em>
+        <span data-i18n="ticker.robot">Ish stolidagi robot</span><em>/</em>
+        <span data-i18n="ticker.pin">4 xonali kod</span><em>/</em>
+        <span data-i18n="ticker.chat">Bitta suhbat</span><em>/</em>
+        <span data-i18n="ticker.local">Mahalliy ishlash</span><em>/</em>
+        <span data-i18n="ticker.typing">Yozish</span><em>/</em>
+        <span data-i18n="ticker.call">Ovozli qoʻngʻiroq</span><em>/</em>
+        <span data-i18n="ticker.robot">Ish stolidagi robot</span><em>/</em>
+        <span data-i18n="ticker.pin">4 xonali kod</span><em>/</em>
+        <span data-i18n="ticker.chat">Bitta suhbat</span><em>/</em>
+        <span data-i18n="ticker.local">Mahalliy ishlash</span><em>/</em>
+      </div>
+    </div>
+
+    <!-- ===================== WHY ===================== -->
+    <section class="section" id="why">
+      <div class="section-label reveal">
+        <span class="num">01</span>
+        <span class="lbl" data-i18n="why.label">Nega Ksenos</span>
+        <span class="fill"></span>
+      </div>
+
+      <div class="why-lead reveal">
+        <h2><span data-i18n="why.h2a">Telefondagi messenjer emas.</span><br /><span class="serif" data-i18n="why.h2b">Kompyuteringizdagi</span> <span data-i18n="why.h2c">hamroh.</span></h2>
+        <p data-i18n="why.lead">
+          Har bir detal bitta maqsad uchun qurilgan: siz va AI oʻrtasida
+          hech qanday ortiqcha qatlam boʻlmasin.
+        </p>
+      </div>
+
+      <div class="why-list">
+        <article class="why-row reveal">
+          <span class="why-num">01</span>
+          <div class="why-text">
+            <h3 data-i18n="why.r1t">Bitta suhbat. Boshqa hech kim.</h3>
+            <p data-i18n="why.r1p">Kontaktlar, qabul qiluvchi maydoni va guruhlar yoʻq. Xabar faqat shu kompyuterdagi Ksenosʼga boradi.</p>
+          </div>
+          <span class="why-arrow" aria-hidden="true">↗</span>
+        </article>
+
+        <article class="why-row reveal">
+          <span class="why-num">02</span>
+          <div class="why-text">
+            <h3 data-i18n="why.r2t">Yozish ham, gapirish ham.</h3>
+            <p data-i18n="why.r2p">Mikrofonni tanlab gapirasiz — Ksenos eshitadi va ovoz bilan javob beradi. Dinamikdan chiqadi, telefonsiz.</p>
+          </div>
+          <span class="why-arrow" aria-hidden="true">↗</span>
+        </article>
+
+        <article class="why-row reveal">
+          <span class="why-num">03</span>
+          <div class="why-text">
+            <h3 data-i18n="why.r3t">Ish stolida jonli robot.</h3>
+            <p data-i18n="why.r3p">Ekranda erkin yuradigan, sakraydigan va holatingizga javob beradigan hamroh — kadrlari tiniq, harakat silliq.</p>
+          </div>
+          <span class="why-arrow" aria-hidden="true">↗</span>
+        </article>
+
+        <article class="why-row reveal">
+          <span class="why-num">04</span>
+          <div class="why-text">
+            <h3 data-i18n="why.r4t">Hammasi shu kompyuterda.</h3>
+            <p data-i18n="why.r4p">Server mahalliy ishlaydi: suhbat, eslatmalar va ovoz tashqariga chiqmaydi. Reklama ham, kuzatuv ham yoʻq.</p>
+          </div>
+          <span class="why-arrow" aria-hidden="true">↗</span>
+        </article>
+      </div>
+    </section>
+
+    <!-- ===================== TOUR ===================== -->
+    <section class="section" id="tour">
+      <div class="section-label reveal">
+        <span class="num">02</span>
+        <span class="lbl" data-i18n="tour.label">Koʻrinish</span>
+        <span class="fill"></span>
+      </div>
+
+      <div class="tour-head reveal">
+        <h2><span data-i18n="tour.h2a">Uchta ekran.</span> <span class="serif" data-i18n="tour.h2b">Bitta odam.</span></h2>
+        <div class="tabs" role="tablist" aria-label="Koʻrinishlar" data-i18n-aria="tour.tabsAria">
+          <button class="tab active" role="tab" aria-selected="true" data-panel="chat" data-i18n="tour.tabChat">Chat</button>
+          <button class="tab" role="tab" aria-selected="false" data-panel="call" data-i18n="tour.tabCall">Qoʻngʻiroq</button>
+          <button class="tab" role="tab" aria-selected="false" data-panel="robot" data-i18n="tour.tabRobot">Hamroh</button>
+        </div>
+      </div>
+
+      <div class="tour-frame reveal">
+        <div class="tour-window">
+          <div class="win-bar">
+            <span class="win-dots"><i></i><i></i><i></i></span>
+            <span class="win-title" id="tourTitle">Ksenos Messenger — Chat</span>
+            <span class="win-controls"><i>—</i><i>▢</i><i class="close">✕</i></span>
+          </div>
+
+          <div class="tour-panel active" data-panel="chat">
+            <div class="tp-chat">
+              <div class="chat-head">
+                <span class="avatar"><img src="/mini-app/static/assets/idle-2.png" alt="" /></span>
+                <span class="chat-id"><b>Ksenos</b><small data-i18n="chat.online">online · faqat agent</small></span>
+              </div>
+              <div class="tp-thread">
+                <div class="msg in"><span data-i18n="tour.m1">Bugun nima qilamiz?</span><span>10:02</span></div>
+                <div class="msg out"><span data-i18n="tour.m2">Kechqurun hisobotni tayyorlab ber.</span><span>10:02</span></div>
+                <div class="msg in"><span data-i18n="tour.m3">Tayyorlayman. Faylni qayerga saqlay?</span><span>10:03</span></div>
+                <div class="msg out"><span data-i18n="tour.m4">Ish stoliga.</span><span>10:03</span></div>
+                <div class="msg in"><span data-i18n="tour.m5">Saqladim — “hisobot.xlsx”. Yana biror narsa?</span><span>10:04</span></div>
+              </div>
+              <div class="composer"><span data-i18n="chat.composer">Xabar yozing…</span><span class="send">➤</span></div>
+            </div>
+          </div>
+
+          <div class="tour-panel" data-panel="call">
+            <div class="tp-call">
+              <span class="call-avatar"><img src="/mini-app/static/assets/idle-3.png" alt="" /></span>
+              <b class="call-name">Ksenos</b>
+              <span class="call-status" data-i18n="tour.callStatus">Qoʻngʻiroq · 00:24</span>
+              <div class="wave" aria-hidden="true">
+                <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+              </div>
+              <span class="call-hint" data-i18n="tour.callHint">Gapiring — eshityapman</span>
+              <div class="call-actions">
+                <span class="call-btn mic">🎤</span>
+                <span class="call-btn hang">☎</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="tour-panel" data-panel="robot">
+            <div class="tp-robot">
+              <div class="desk" aria-hidden="true">
+                <span class="desk-icon">📁</span>
+                <span class="desk-icon">📄</span>
+                <span class="desk-icon">🖥</span>
+              </div>
+              <img class="desk-robot" src="/mini-app/static/assets/walk-1.png" alt="" id="tourRobot" />
+              <div class="desk-bubble" data-i18n="tour.bubble">Men shu yerdaman — bir chaqiriq uzoqda.</div>
+              <p class="desk-caption" data-i18n="tour.caption">Ish stoli ustida erkin yuradi, ishlashingizga xalaqit bermaydi.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== PIN ===================== -->
+    <section class="section" id="pin">
+      <div class="section-label reveal">
+        <span class="num">03</span>
+        <span class="lbl" data-i18n="pin.label">Keyingi versiya</span>
+        <span class="fill"></span>
+      </div>
+
+      <div class="pin-grid">
+        <div class="pin-copy reveal">
+          <h2><span data-i18n="pin.h2a">Bitta kod.</span><br /><span class="serif" data-i18n="pin.h2b">Har qanday kompyuter.</span></h2>
+          <p data-i18n="pin.lead">
+            Mini ilovani yangi kompyuterga yuklasangiz ham suhbatingiz siz bilan qoladi.
+            Oʻrnatilgandan soʻng 4 xonali maxsus parol beriladi — u hech qachon oʻzgarmaydi.
+            PIN kodni kiritib, oʻz akkauntingizga kirasiz.
+          </p>
+
+          <ul class="pin-points">
+            <li><b data-i18n="pin.p1t">Doimiy kod</b><span data-i18n="pin.p1p">Bir marta beriladi va umuman oʻzgarmaydi.</span></li>
+            <li><b data-i18n="pin.p2t">PIN bilan kirish</b><span data-i18n="pin.p2p">Kodni yozasiz — akkaunt oʻzi ochiladi.</span></li>
+            <li><b data-i18n="pin.p3t">Bir akkaunt</b><span data-i18n="pin.p3p">Suhbat, eslatmalar va sozlamalar bir joyda.</span></li>
+          </ul>
+        </div>
+
+        <div class="pin-visual reveal">
+          <div class="pin-card" id="pinCard">
+            <div class="pin-top">
+              <span class="pin-badge" data-i18n="pin.badge">Reja</span>
+              <span class="pin-lock">🔒</span>
+            </div>
+            <h3 data-i18n="pin.title">Kirish kodi</h3>
+            <p class="pin-sub" data-i18n="pin.sub">Akkauntingizga kirish uchun 4 xonali kodni kiriting</p>
+
+            <div class="slots" id="slots" aria-label="PIN kod" data-i18n-aria="pin.slotsAria">
+              <span class="slot"></span><span class="slot"></span><span class="slot"></span><span class="slot"></span>
+            </div>
+
+            <div class="pin-status" id="pinStatus" data-i18n="pin.hint">Demo koʻrinishi · kod tekshirilmaydi</div>
+
+            <div class="keypad" id="keypad">
+              <button type="button" data-key="1">1</button>
+              <button type="button" data-key="2">2</button>
+              <button type="button" data-key="3">3</button>
+              <button type="button" data-key="4">4</button>
+              <button type="button" data-key="5">5</button>
+              <button type="button" data-key="6">6</button>
+              <button type="button" data-key="7">7</button>
+              <button type="button" data-key="8">8</button>
+              <button type="button" data-key="9">9</button>
+              <button type="button" class="ghost" data-key="clear">C</button>
+              <button type="button" data-key="0">0</button>
+              <button type="button" class="ghost" data-key="back">←</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== ROADMAP ===================== -->
+    <section class="section" id="roadmap">
+      <div class="section-label reveal">
+        <span class="num">04</span>
+        <span class="lbl" data-i18n="road.label">Kelajakdagi reja</span>
+        <span class="fill"></span>
+      </div>
+
+      <div class="road-head reveal">
+        <h2><span data-i18n="road.h2a">Qadam-baqadam,</span> <span class="serif" data-i18n="road.h2b">oshkora.</span></h2>
+        <p data-i18n="road.lead">Nima tayyor, nima ustida ishlanmoqda — hammasi shu yerda.</p>
+      </div>
+
+      <div class="road-grid">
+        <article class="road-card done reveal">
+          <span class="road-state" data-i18n="road.stateDone">Tayyor</span>
+          <span class="road-num">01</span>
+          <h3 data-i18n="road.c1t">Messenger va robot</h3>
+          <p data-i18n="road.c1p">Windows oynasi, ovozli qoʻngʻiroq va jonli hamroh — ishlayapti.</p>
+        </article>
+        <article class="road-card done reveal">
+          <span class="road-state" data-i18n="road.stateDone">Tayyor</span>
+          <span class="road-num">02</span>
+          <h3 data-i18n="road.c2t">Yuklab olish sayti</h3>
+          <p data-i18n="road.c2p">Aynan shu sahifa: bitta tugma, bitta oʻrnatuvchi, bitta bosish.</p>
+        </article>
+        <article class="road-card next reveal">
+          <span class="road-state" data-i18n="road.stateNext">Keyingi</span>
+          <span class="road-num">03</span>
+          <h3 data-i18n="road.c3t">4 xonali PIN</h3>
+          <p data-i18n="road.c3p">Oʻzgarmas kod bilan akkauntga kirish.</p>
+        </article>
+        <article class="road-card plan reveal">
+          <span class="road-state" data-i18n="road.statePlan">Kelajakda</span>
+          <span class="road-num">04</span>
+          <h3 data-i18n="road.c4t">Boshqa kompyuter</h3>
+          <p data-i18n="road.c4p">PIN kodni kiritib, suhbatni yangi qurilmada davom ettirasiz.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- ===================== FINAL ===================== -->
+    <section class="final reveal">
+      <p class="eyebrow centered"><span class="rule"></span><span data-i18n="final.eyebrow">Bepul · v1.0</span><span class="rule"></span></p>
+      <h2><span data-i18n="final.h2a">Bugun oʻrnating.</span><br /><span class="serif" data-i18n="final.h2b">Ertaga birga ishlaymiz.</span></h2>
+      <a class="pill pill-cream pill-xl" href="#download" id="finalBtn">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 19.5h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span data-i18n="final.btn">Ksenos Messengerʼni yuklab olish</span>
+      </a>
+      <p class="fine print"><span data-i18n="final.n1">Windows 10 / 11</span><i></i><span data-i18n="final.n2">64-bit</span><i></i><span data-i18n="final.n3">1 daqiqa</span></p>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="foot-top">
+      <a class="brand" href="#top">
+        <span class="brand-mark small">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 4v16M6 12.2 17.6 3.8M6 12.2 18.4 20.2" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+        </span>
+        <span class="brand-name">Ksenos<span>Messenger</span></span>
+      </a>
+      <nav class="foot-links" aria-label="Havolalar" data-i18n-aria="nav.linksAria">
+        <a href="#tour" data-i18n="nav.tour">Koʻrinish</a>
+        <a href="#why" data-i18n="nav.why">Nega Ksenos</a>
+        <a href="#pin" data-i18n="nav.pin">Kirish kodi</a>
+        <a href="#roadmap" data-i18n="nav.roadmap">Reja</a>
+      </nav>
+      <span class="foot-meta">© 2026 Ksenos</span>
+    </div>
+    <p class="foot-note" data-i18n="foot.note">Shaxsiy AI yordamchi uchun yengil Windows chat. Maʼlumotlaringiz shu kompyuterda qoladi.</p>
+  </footer>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="/mini-app/static/i18n.js"></script>
+  <script src="/mini-app/static/app.js"></script>
+</body>
+</html>

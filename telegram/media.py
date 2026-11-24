@@ -317,6 +317,36 @@ class NtgTransport:
         await self._await(rtc.unmute(user_id))
         await self._await(rtc.resume(user_id))
 
+    # -- group calls ------------------------------------------------------ #
+    async def create_group_call(self, chat_id: int) -> str:
+        """Register a group call and return the join payload for Telegram.
+
+        The payload is what ``phone.joinGroupCall`` expects in ``params``; it
+        contains this side's ssrc, ICE credentials and DTLS fingerprints.
+        """
+        rtc = self._ensure()
+        try:
+            await self._await(rtc.stop(chat_id))
+        except Exception:  # noqa: BLE001 - nothing to clear is the normal case
+            logger.debug("Group call: no stale native call for %s", chat_id)
+        payload = await self._await(rtc.create_call(chat_id))
+        if not payload:
+            raise MediaError("The native transport produced no join payload.")
+        return str(payload)
+
+    async def connect_group(self, chat_id: int, params: str) -> None:
+        """Open the WebRTC transport with the parameters Telegram returned."""
+        rtc = self._ensure()
+        await self._await(rtc.connect(chat_id, str(params), False))
+
+    async def listen_group(self, chat_id: int) -> None:
+        """Receive the group's audio as frames; our own microphone stays muted."""
+        rtc = self._ensure()
+        media = self._media()
+        await self._await(
+            rtc.set_stream_sources(chat_id, self._module.StreamMode.PLAYBACK, media)
+        )
+
     def _media(self) -> Any:
         audio = self._module.AudioDescription(
             media_source=self._module.MediaSource.EXTERNAL,
