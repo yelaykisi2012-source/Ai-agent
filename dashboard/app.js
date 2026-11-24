@@ -169,16 +169,107 @@ function renderActions(actions) {
   });
 }
 
+function renderUpdate(data) {
+  const card = $("update-card");
+  if (!card) return;
+  if (!data || !data.available) {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+  const title = (data.releases && data.releases[0] && data.releases[0].title) || "";
+  $("update-text").textContent =
+    "v" + data.current + " → v" + data.latest + (title ? " · " + title : "");
+}
+
+function renderOwner(owner) {
+  if (!owner) return;
+  const apps = (owner.apps || []).map((app) => app.name + " (" + app.human + ")");
+  const focus = $("owner-focus");
+  if (focus) {
+    focus.textContent = apps.length
+      ? apps[0]
+      : owner.learned
+        ? "Learning…"
+        : "Not observed yet";
+  }
+  const detail = $("owner-detail");
+  if (!detail) return;
+  const bits = [];
+  if (apps.length > 1) bits.push(apps.slice(1, 3).join(", "));
+  if (owner.active_hours) bits.push("active " + owner.active_hours);
+  if (owner.likes && owner.likes.length) bits.push("likes " + owner.likes.slice(0, 3).join(", "));
+  detail.textContent = bits.length
+    ? bits.join(" · ")
+    : "What Ksenos has learned on this computer.";
+}
+
+async function downloadUpdate() {
+  const button = $("update-download");
+  const fill = $("update-fill");
+  const status = $("update-status");
+  const path = "/download/ksenos-setup.exe";
+  if (!button || button.disabled) return;
+  button.disabled = true;
+  if (status) status.textContent = "downloading…";
+  if (fill) fill.style.width = "0%";
+  try {
+    const response = await fetch(path, { cache: "no-store" });
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    const total = Number(response.headers.get("content-length")) || 0;
+    const reader = response.body && response.body.getReader ? response.body.getReader() : null;
+    let blob;
+    if (!reader) {
+      blob = await response.blob();
+    } else {
+      const chunks = [];
+      let received = 0;
+      for (;;) {
+        const part = await reader.read();
+        if (part.done) break;
+        chunks.push(part.value);
+        received += part.value.length;
+        if (fill) {
+          const share = total ? (received / total) * 100 : received / 4096;
+          fill.style.width = Math.min(100, share) + "%";
+        }
+      }
+      blob = new Blob(chunks, { type: "application/octet-stream" });
+    }
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "Ksenos-Setup.exe";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 8000);
+    if (fill) fill.style.width = "100%";
+    if (status) status.textContent = "saved · " + (blob.size / 1048576).toFixed(1) + " MB";
+  } catch (error) {
+    if (status) status.textContent = "failed — opening the link";
+    window.location.href = path;
+  } finally {
+    window.setTimeout(() => {
+      if (button) button.disabled = false;
+    }, 4000);
+  }
+}
+
 async function refresh() {
   try {
-    const [summary, runs, activity] = await Promise.all([
+    const [summary, runs, activity, updates, owner] = await Promise.all([
       api("/dashboard/summary"),
       api("/runs?limit=15"),
       api("/activity?limit=30"),
+      api("/system/updates").catch(() => null),
+      api("/system/owner").catch(() => null),
     ]);
     renderSummary(summary);
     renderRuns(runs);
     renderActions(activity.actions || []);
+    renderUpdate(updates);
+    renderOwner(owner);
   } catch (error) {
     $("agent-detail").textContent = "Dashboard error: " + error.message;
   }
@@ -254,6 +345,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("confirm-button").addEventListener("click", approve);
   $("stop-button").addEventListener("click", () => setPaused(true));
   $("resume-button").addEventListener("click", () => setPaused(false));
+  $("update-download").addEventListener("click", downloadUpdate);
 
   refresh();
   window.setInterval(refresh, 15000);

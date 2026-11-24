@@ -39,6 +39,28 @@ body {
 .brand h1 { font-size: 1.15rem; letter-spacing: 0.14em; margin: 0; font-weight: 600; }
 .brand h1 span { color: var(--accent); }
 
+.value.small { font-size: 1.15rem; }
+
+.update-card { border-color: rgba(240, 180, 92, 0.4); }
+.update-card h2 { color: var(--warn); }
+
+.progress {
+  margin-top: 0.7rem;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  overflow: hidden;
+}
+
+.progress span {
+  display: block;
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--warn));
+  transition: width 0.2s ease;
+}
+
 .dot {
   width: 0.6rem; height: 0.6rem; border-radius: 50%;
   background: var(--muted); box-shadow: 0 0 0 4px rgba(143, 163, 184, 0.12);

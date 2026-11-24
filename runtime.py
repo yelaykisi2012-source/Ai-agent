@@ -24,7 +24,9 @@ from typing import Any
 from anyio import to_thread
 
 import memory
+import messenger_inbox
 import owner_profile
+import updates
 from brain import AgentBrain, BrainError, ToolResult
 from config import PROJECT_ROOT, Settings
 from database import record_event
@@ -231,6 +233,19 @@ class AgentRuntime:
             reminder = await to_thread.run_sync(service.get, reminder_id)
             # A "call me at 18:45" reminder dials instead of sending text.
             if reminder is not None and reminder.kind == "call":
+                if not getattr(self.telegram, "ready", False):
+                    # No Telegram account: ring inside the messenger window
+                    # instead of failing silently. The window shows the call.
+                    messenger_inbox.push(
+                        reminder.message, kind="call", reminder_id=reminder_id
+                    )
+                    await to_thread.run_sync(service.acknowledge, reminder_id)
+                    record_event(
+                        source="reminder",
+                        message=f"Call reminder #{reminder_id} rang in the messenger",
+                        details="telegram is not connected",
+                    )
+                    return
                 await self._run_scheduled_call(reminder)
                 return
             await service.run_due(reminder_id)
@@ -239,14 +254,18 @@ class AgentRuntime:
 
         account_holder: dict[str, TelegramAccount] = {}
 
-        async def notify(text: str) -> bool:
+        async def notify(text: str, reminder_id: int | None = None) -> bool:
+            # Local first: the messenger window is always here, Telegram often
+            # is not. Reaching the window acknowledges the reminder server-side.
+            local = messenger_inbox.push(text, reminder_id=reminder_id) is not None
             account = account_holder.get("account")
-            delivered = bool(account and account.ready and await account.send_message(text))
+            telegram = bool(account and account.ready and await account.send_message(text))
+            delivered = local or telegram
             record_event(
                 source="notifier",
                 message="Notification delivered" if delivered else "Notification not delivered",
                 level="INFO" if delivered else "WARNING",
-                details=text[:500],
+                details=f"messenger={local}, telegram={telegram}: {text[:400]}",
             )
             return delivered
 
@@ -525,6 +544,8 @@ class AgentRuntime:
             logger.info("Telegram not started: desktop-only session")
         self.scheduler.start()
         self.profile_observer.start()
+        # One Telegram message per new version: "yuklab olin, iltimos".
+        await self._announce_update()
         if memory.is_paused():
             self.scheduler.pause()
         self.reminders.restore()
@@ -542,6 +563,47 @@ class AgentRuntime:
                 f"hotkey={getattr(self.hotkey, 'hotkey', 'off')}"
             ),
         )
+
+    async def _announce_update(self) -> None:
+        """Tell the owner a newer Ksenos exists, once per version.
+
+        The messenger window always shows it; Telegram also gets the message
+        with the download button when the account is connected. Nothing is
+        announced when no newer release was published, and a restart never
+        repeats a notice the owner already saw.
+        """
+        try:
+            payload = updates.payload()
+        except Exception:  # noqa: BLE001 - an update check must never stop startup
+            logger.debug("Update check failed", exc_info=True)
+            return
+        if not payload.get("available"):
+            return
+        latest = str(payload.get("latest") or "")
+        if not latest or not updates.needs_announce(latest):
+            return
+
+        text = updates.announce_text(payload)
+        local = messenger_inbox.push(text, kind="update") is not None
+        sent = False
+        if getattr(self.telegram, "ready", False):
+            sender = getattr(self.telegram, "send_update_notice", None)
+            try:
+                if sender is not None:
+                    sent = bool(
+                        await sender(text, url=updates.download_url(self.settings))
+                    )
+                else:  # pragma: no cover - every real account has the method
+                    sent = bool(await self.telegram.send_message(text))
+            except Exception:  # noqa: BLE001 - a notice must not break startup
+                logger.exception("Update notice could not be sent to Telegram")
+        if sent or local:
+            updates.mark_announced(latest)
+            record_event(
+                source="updates",
+                message="Update notice delivered",
+                details=f"version={latest}, telegram={sent}, messenger={local}",
+            )
 
     async def _start_telegram(self) -> str:
         """Start Telegram without ever blocking the rest of the agent."""

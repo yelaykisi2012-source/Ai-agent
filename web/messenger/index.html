@@ -48,6 +48,24 @@
 
       <button class="gate-account" id="gateAccount" type="button" data-i18n="gate.account">Akkaunt yaratish</button>
 
+      <button class="gate-link" id="gatePairOpen" type="button" data-i18n="gate.pairLink">Boshqa qurilmadan ulanish</button>
+
+      <div class="gate-pair" id="gatePair" hidden>
+        <label class="field">
+          <span data-i18n="gate.pairCode">Ulash kodi</span>
+          <input id="pairCode" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="000000" />
+        </label>
+        <label class="field">
+          <span data-i18n="gate.pairName">Qurilma nomi</span>
+          <input id="pairName" type="text" maxlength="40" data-i18n-attr="placeholder:gate.pairNamePlace" placeholder="Masalan: Noutbuk" />
+        </label>
+        <div class="gate-pair-actions">
+          <button class="btn-line ghost" id="pairCancel" type="button" data-i18n="gate.pairCancel">Bekor qilish</button>
+          <button class="btn-line primary" id="pairGo" type="button" data-i18n="gate.pairGo">Ulash</button>
+        </div>
+        <p class="gate-hint" id="pairHint" data-i18n="gate.pairHint">Kodni shu kompyuterda: Sozlamalar → Ulangan qurilmalar boʻlimidan oling.</p>
+      </div>
+
       <div class="gate-lang" id="gateLang">
         <button type="button" data-lang="uz">UZ</button>
         <button type="button" data-lang="ru">RU</button>
@@ -61,8 +79,11 @@
     <aside class="rail" id="rail">
       <div class="rail-head">
         <span class="brand">Ksenos<span>Messenger</span></span>
-        <button class="icon-btn" id="lockBtn" type="button" aria-label="Lock" data-i18n-aria="rail.lock">
-          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 10V8a5 5 0 0 1 10 0v2M5.8 10h12.4A1.8 1.8 0 0 1 20 11.8v7.4A1.8 1.8 0 0 1 18.2 21H5.8A1.8 1.8 0 0 1 4 19.2v-7.4A1.8 1.8 0 0 1 5.8 10Z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        <button class="icon-btn" id="railSearch" type="button" aria-label="Qidirish" data-i18n-aria="rail.searchAria">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="6.4" stroke="currentColor" stroke-width="1.7"/><path d="m16 16 4 4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        </button>
+        <button class="icon-btn" id="railCollapse" type="button" aria-label="Yon panelni yopish" data-i18n-aria="rail.collapse">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="3" stroke="currentColor" stroke-width="1.6"/><path d="M9 4.5v15" stroke="currentColor" stroke-width="1.6"/><path d="m16 9.5-2.5 2.5L16 14.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
       </div>
 
@@ -71,7 +92,7 @@
         <span data-i18n="rail.new">Yangi suhbat</span>
       </button>
 
-      <label class="search">
+      <label class="search" id="searchRow" hidden>
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="6.4" stroke="currentColor" stroke-width="1.7"/><path d="m16 16 4 4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
         <input id="searchInput" type="search" autocomplete="off" data-i18n-attr="placeholder:rail.search" placeholder="Tarixdan qidirish…" />
       </label>
@@ -84,15 +105,24 @@
       <div class="history" id="historyList" role="list"></div>
 
       <div class="rail-foot">
-        <button class="settings-entry" id="settingsBtn" type="button">
-          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-          <span data-i18n="set.title">Sozlamalar</span>
+        <button class="me" id="meBtn" type="button" title="Sozlamalar">
+          <span class="me-pic" id="mePic">
+            <img id="meImg" alt="" hidden />
+            <span id="meInitial">K</span>
+          </span>
+          <span class="me-name" id="meName">Ksenos</span>
         </button>
-        <div class="lang" id="langSwitch" role="group" aria-label="Til">
-          <button type="button" data-lang="uz">UZ</button>
-          <button type="button" data-lang="ru">RU</button>
-          <button type="button" data-lang="en">EN</button>
-        </div>
+        <button class="icon-btn" id="lockBtn" type="button" aria-label="Lock" data-i18n-aria="rail.lock">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 10V8a5 5 0 0 1 10 0v2M5.8 10h12.4A1.8 1.8 0 0 1 20 11.8v7.4A1.8 1.8 0 0 1 18.2 21H5.8A1.8 1.8 0 0 1 4 19.2v-7.4A1.8 1.8 0 0 1 5.8 10Z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        </button>
+        <button class="icon-btn" id="settingsBtn" type="button" aria-label="Sozlamalar" data-i18n-aria="set.title">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="lang" id="langSwitch" role="group" aria-label="Til">
+        <button type="button" data-lang="uz">UZ</button>
+        <button type="button" data-lang="ru">RU</button>
+        <button type="button" data-lang="en">EN</button>
       </div>
     </aside>
 
@@ -113,6 +143,9 @@
         <span class="thread-badge" id="threadBadge" hidden></span>
         <button class="icon-btn" id="threadEdit" type="button" hidden aria-label="Rename" data-i18n-aria="chat.rename">
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h4l9.5-9.5a2.1 2.1 0 0 0-3-3L5 17v3Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M14.5 5.5 18.5 9.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </button>
+        <button class="icon-btn call-btn" id="callBtn" type="button" aria-label="Qoʻngʻiroq" data-i18n-aria="call.start">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6.5 3.8h2.6l1.5 3.7-2 1.5a10.4 10.4 0 0 0 5.4 5.4l1.5-2 3.7 1.5v2.6a2.5 2.5 0 0 1-2.7 2.5A14.6 14.6 0 0 1 4 6.5 2.5 2.5 0 0 1 6.5 3.8Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
         </button>
       </header>
 
@@ -172,6 +205,10 @@
         <button class="snav" type="button" data-pane="data">
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><ellipse cx="12" cy="6" rx="7" ry="2.6" stroke="currentColor" stroke-width="1.5"/><path d="M5 6v6c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6V6M5 12v6c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6v-6" stroke="currentColor" stroke-width="1.5"/></svg>
           <span data-i18n="set.data">Maʼlumotlar</span>
+        </button>
+        <button class="snav" type="button" data-pane="devices">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="4.5" width="12" height="9" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M6.5 17h5M9 13.5V17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><rect x="16.5" y="9" width="5" height="10.5" rx="1.6" stroke="currentColor" stroke-width="1.5"/></svg>
+          <span data-i18n="set.devices">Ulangan qurilmalar</span>
         </button>
         <button class="snav" type="button" data-pane="about">
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.5"/><path d="M12 11v5.5M12 7.8v.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
@@ -292,11 +329,41 @@
           <p class="set-note" data-i18n="set.dataNote">Boshqa qurilmada ilovani oʻrnatib, shu PIN bilan ochasiz — suhbatlar oʻsha qurilmaning bazasida boʻladi.</p>
         </section>
 
+        <section class="pane" data-pane="devices">
+          <h3 data-i18n="set.devices">Ulangan qurilmalar</h3>
+          <p class="pane-lead" data-i18n="set.devicesLead">Boshqa kompyuter yoki telefonda shu manzilni ochib, ulash kodini kiriting — suhbat, tarix va sozlamalar bir xil boʻladi.</p>
+
+          <div class="data-row">
+            <div>
+              <b data-i18n="set.devAddress">Manzil</b>
+              <p class="set-note" id="devUrls">—</p>
+            </div>
+            <button class="btn-line" id="devCopy" type="button" data-i18n="set.devCopy">Nusxalash</button>
+          </div>
+
+          <div class="data-row">
+            <div>
+              <b data-i18n="set.devAdd">Yangi qurilma qoʻshish</b>
+              <p class="set-note" data-i18n="set.devAddNote">Kod 10 daqiqa amal qiladi va bir marta ishlaydi.</p>
+            </div>
+            <button class="btn-line primary" id="devCode" type="button" data-i18n="set.devCode">Kod olish</button>
+          </div>
+
+          <div class="pair-box" id="pairBox" hidden>
+            <span class="pair-label" data-i18n="set.devYourCode">Ulash kodi</span>
+            <b class="pair-number" id="pairNumber">000000</b>
+            <span class="set-note" id="pairLeft"></span>
+          </div>
+
+          <div class="dev-list" id="devList"></div>
+          <p class="set-note" id="devLanNote"></p>
+        </section>
+
         <section class="pane" data-pane="about">
           <h3>Ksenos</h3>
           <p class="pane-lead" data-i18n="set.about">Windows uchun shaxsiy AI chat. Maʼlumotlar shu kompyuterda qoladi.</p>
           <div class="about-grid">
-            <span data-i18n="set.version">Versiya</span><b>1.0</b>
+            <span data-i18n="set.version">Versiya</span><b id="aboutVersion">1.0</b>
             <span data-i18n="set.platform">Platforma</span><b>Windows 10 / 11</b>
             <span data-i18n="set.storage">Baza</span><b>SQLite · mahalliy</b>
           </div>
@@ -313,6 +380,39 @@
       <div class="mini-actions">
         <button class="btn-line ghost" id="renameCancel" type="button" data-i18n="rename.cancel">Bekor qilish</button>
         <button class="btn-line primary" id="renameSave" type="button" data-i18n="rename.save">Saqlash</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== call ===================== -->
+  <div class="call" id="call" hidden>
+    <div class="call-card">
+      <span class="call-avatar" id="callAvatar">
+        <img id="callImg" alt="" hidden />
+        <span id="callInitial">K</span>
+      </span>
+      <h2 id="callName">Ksenos</h2>
+      <p class="call-status" id="callStatus" data-i18n="call.connecting">Ulanmoqda…</p>
+      <p class="call-hint" id="callHint"></p>
+
+      <div class="call-log" id="callLog" aria-live="polite"></div>
+
+      <form class="call-type" id="callForm">
+        <input id="callInput" type="text" autocomplete="off" data-i18n-attr="placeholder:call.typePlace" placeholder="Yozib yuborish…" />
+        <button type="submit" aria-label="Send" data-i18n-aria="call.send">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4.5 12 20 4.5 15.2 20l-3.1-5.6L4.5 12Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+        </button>
+      </form>
+
+      <div class="call-actions">
+        <button class="call-act" id="callMic" type="button">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="9" y="3.5" width="6" height="10" rx="3" stroke="currentColor" stroke-width="1.6"/><path d="M6 11.5a6 6 0 0 0 12 0M12 17.5V21" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <span data-i18n="call.mic">Mikrofon</span>
+        </button>
+        <button class="call-act end" id="callEnd" type="button">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 14.5v-2a2 2 0 0 1 2-2c4.4-.7 7.6-.7 12 0a2 2 0 0 1 2 2v2a1.6 1.6 0 0 1-1.9 1.6l-2.6-.5a1.6 1.6 0 0 1-1.3-1.6v-1.2a12 12 0 0 0-4.4 0V13a1.6 1.6 0 0 1-1.3 1.6l-2.6.5A1.6 1.6 0 0 1 4 14.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+          <span data-i18n="call.end">Tugatish</span>
+        </button>
       </div>
     </div>
   </div>

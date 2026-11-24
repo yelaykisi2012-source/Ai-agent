@@ -11,6 +11,30 @@
   const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
   const t = (key, vars) => (window.KsenosI18n ? window.KsenosI18n.t(key, vars) : key);
 
+  /* ---------- loading screen ---------- */
+  const boot = $("#boot");
+
+  const hideBoot = () => {
+    if (!boot) return;
+    boot.classList.add("gone");
+    window.setTimeout(() => {
+      boot.hidden = true;
+    }, 520);
+  };
+
+  const reloadWithBoot = () => {
+    if (boot) {
+      boot.hidden = false;
+      boot.classList.remove("gone");
+    }
+    window.setTimeout(() => window.location.reload(), 650);
+  };
+
+  if (boot) {
+    window.addEventListener("load", hideBoot);
+    window.setTimeout(hideBoot, 2500);
+  }
+
   /* ---------- reading progress + sticky nav ---------- */
   const bar = $("#scrollBar");
   const nav = $("#nav");
@@ -321,11 +345,152 @@
   });
 
   /* ---------- language ---------- */
+  /* ---------- updates: the page refreshes itself, no F5 ---------- */
+  const UPDATES_URL = "/system/updates";
+  const UPDATES_POLL_MS = 15000;
+  let servedVersion = null;
+  let lastUpdates = null;
+
+  const releaseRow = (release) => {
+    const item = document.createElement("li");
+    item.className = "upd-item";
+    const head = document.createElement("div");
+    head.className = "upd-item-head";
+    const version = document.createElement("b");
+    version.textContent = `v${release.version || "?"}`;
+    head.append(version);
+    if (release.title) {
+      const title = document.createElement("span");
+      title.textContent = release.title;
+      head.append(title);
+    }
+    const when = document.createElement("span");
+    when.className = "upd-date";
+    when.textContent = release.at || "";
+    head.append(when);
+    item.append(head);
+    if ((release.items || []).length) {
+      const points = document.createElement("ul");
+      points.className = "upd-points";
+      release.items.forEach((point) => {
+        const row = document.createElement("li");
+        row.textContent = point;
+        points.append(row);
+      });
+      item.append(points);
+    }
+    return item;
+  };
+
+  const renderUpdates = (data) => {
+    lastUpdates = data;
+    const current = String(data.current || "");
+    if (servedVersion && current && current !== servedVersion) {
+      // The server was updated while this page was open: it reloads itself.
+      reloadWithBoot();
+      return;
+    }
+    if (current) servedVersion = current;
+
+    const state = $("#updState");
+    const led = $("#updLed");
+    const versionEl = $("#updVersion");
+    const latestEl = $("#updLatest");
+    const listEl = $("#updList");
+    if (state) state.textContent = data.available ? t("upd.available") : t("upd.uptodate");
+    if (led) {
+      led.classList.toggle("warn", Boolean(data.available));
+      led.classList.remove("off");
+    }
+    if (versionEl) versionEl.textContent = `v${current || "?"}`;
+    if (latestEl) latestEl.textContent = `v${data.latest || current || "?"}`;
+    if (listEl) {
+      listEl.replaceChildren();
+      (data.releases || []).slice(0, 4).forEach((release) => listEl.append(releaseRow(release)));
+    }
+  };
+
+  const loadUpdates = async () => {
+    try {
+      const response = await fetch(UPDATES_URL, { cache: "no-store" });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      renderUpdates(await response.json());
+    } catch (error) {
+      const state = $("#updState");
+      if (state) state.textContent = t("upd.offline");
+      const led = $("#updLed");
+      if (led) led.classList.add("off");
+    }
+  };
+
+  const updBtn = $("#updBtn");
+  const updFill = $("#updFill");
+  const updPct = $("#updPct");
+  const updNote = $("#updNote");
+  let updDownloading = false;
+
+  const updProgress = (value) => {
+    const percent = Math.max(0, Math.min(100, Math.round(value)));
+    if (updFill) updFill.style.width = `${percent}%`;
+    if (updPct) updPct.textContent = `${percent}%`;
+  };
+
+  const downloadUpdate = async () => {
+    if (!updBtn || updDownloading) return;
+    updDownloading = true;
+    updBtn.classList.add("loading");
+    updProgress(0);
+    if (updNote) updNote.textContent = t("upd.prep");
+    try {
+      const response = await fetch(DOWNLOAD_URL, { cache: "no-store" });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const total = Number(response.headers.get("content-length")) || 0;
+      const reader = response.body?.getReader?.();
+      let blob;
+      if (!reader) {
+        blob = await response.blob();
+        updProgress(100);
+      } else {
+        const chunks = [];
+        let received = 0;
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+          received += value.length;
+          updProgress(total ? (received / total) * 100 : Math.min(92, received / 4096));
+        }
+        blob = new Blob(chunks, { type: "application/octet-stream" });
+      }
+      saveBlob(blob, "Ksenos-Setup.exe");
+      updProgress(100);
+      if (updNote) updNote.textContent = t("dl.doneNote");
+      showToast(t("dl.toast", { size: sizeText(blob.size) }));
+      window.setTimeout(() => {
+        updBtn.classList.remove("loading");
+        updProgress(0);
+      }, 6000);
+    } catch (error) {
+      updBtn.classList.remove("loading");
+      updProgress(0);
+      if (updNote) updNote.textContent = t("dl.fallbackNote");
+      window.location.href = DOWNLOAD_URL;
+      showToast(t("dl.fallbackToast"));
+    } finally {
+      updDownloading = false;
+    }
+  };
+
+  updBtn?.addEventListener("click", downloadUpdate);
+  loadUpdates();
+  window.setInterval(loadUpdates, UPDATES_POLL_MS);
+
   document.addEventListener("ksenus:lang", () => {
     resetButton();
     const map = titles();
     if (tourTitle && map[currentTab]) tourTitle.textContent = map[currentTab];
     if (pinStatus && !pin) pinStatus.textContent = PIN_HINT();
+    if (lastUpdates) renderUpdates(lastUpdates);
     if (note && !downloading && !downloadBtn?.classList.contains("done")) {
       note.innerHTML = noteHTML();
     }

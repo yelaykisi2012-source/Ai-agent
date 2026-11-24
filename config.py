@@ -320,9 +320,10 @@ class Settings(BaseSettings):
     #: together with computer mode; /companion/show puts it on screen at any
     #: time and /companion/hide takes it away.
     companion_enabled: bool = True
-    #: Pixel zoom for the sprite (1-4). 3 triples every pixel: the pet stays
-    #: sharp on a high-DPI screen instead of looking soft and tiny.
-    companion_scale: int = Field(default=3, ge=1, le=4)
+    #: Pixel zoom for the sprite (1-4). 2 is the owner's "a little smaller":
+    #: the robot keeps sharp pixels and stays a pet, not a poster. Use 3-4 only
+    #: on a very high-DPI screen.
+    companion_scale: int = Field(default=2, ge=1, le=4)
     #: How long the pet may sit untouched before it falls asleep.
     companion_sleep_seconds: int = Field(default=90, ge=10, le=3600)
     #: Kompyuter rejimida agent o‘z javobini shu kompyuterning dinamigida

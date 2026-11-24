@@ -203,7 +203,12 @@ def test_account_connects_with_synchronous_is_connected(tmp_path: Path) -> None:
     assert account.ready is True
     assert account.owner_id == 999
     assert account.self_id == 999
-    assert len(client.handlers) == 3
+    # messages, two call updates, and the update-download button callback
+    assert len(client.handlers) == 4
+    assert any(
+        getattr(handler, "__name__", "") == "_handle_update_callback"
+        for handler in client.handlers
+    )
     status = account.status()
     assert status["connected"] is True
     assert status["authorized"] is True

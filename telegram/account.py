@@ -7,12 +7,14 @@ authorized owner only, and never exposes session data through the API.
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 import logging
 import re
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+import updates
 from config import Settings
 
 logger = logging.getLogger(__name__)
@@ -22,6 +24,12 @@ CallHandler = Callable[[object], Awaitable[None]]
 
 #: Every URL in a channel post, so a video the channel linked is not lost.
 _URL = re.compile(r"https?://[^\s<>\"'«»]+")
+
+
+#: Callback data of the "download the update" button. Kept short on purpose:
+#: Telegram allows 64 bytes, so the link itself is rebuilt on this side.
+_UPDATE_CALLBACK = b"ksenus:update"
+_UPDATE_CALLBACK_PATTERN = rb"^ksenus:update$"
 
 
 def _post_links(text: str) -> list[str]:
@@ -311,6 +319,62 @@ class TelegramAccount:
             logger.exception("Telegram send_message failed")
             return False
 
+    async def send_update_notice(self, text: str, *, url: str | None = None) -> bool:
+        """Announce a new Ksenos with a download button.
+
+        The button starts the little download animation this module owns: one
+        press is answered, the message fills with a progress bar, and the last
+        state carries the real installer link.
+        """
+        if not self.ready or self._client is None:
+            logger.warning("Update notice not sent: account is not ready")
+            return False
+        target = self._owner_id
+        if target is None:
+            logger.warning("Update notice not sent: no owner id configured")
+            return False
+        if url:
+            self._update_url = url
+        try:
+            from telethon import Button
+
+            sent = await self._client.send_message(
+                target,
+                (text or "")[:4096],
+                buttons=[Button.inline("⬇️ Yuklab olish", _UPDATE_CALLBACK)],
+            )
+            return sent is not None and getattr(sent, "id", None) is not None
+        except Exception:  # noqa: BLE001 - Telegram errors are logged, not raised
+            logger.exception("Telegram update notice failed")
+            return False
+
+    async def _handle_update_callback(self, event: Any) -> None:
+        """The download button: animate, then hand over the real link."""
+        if self.sender_role(getattr(event, "sender_id", None)) != "owner":
+            await event.answer("Bu tugma faqat egasi uchun.", alert=True)
+            return
+        await event.answer("Yuklanmoqda…")
+        text = updates.announce_text()
+        for step in range(0, 101, 10):
+            filled = "▰" * (step // 10)
+            empty = "▱" * (10 - step // 10)
+            try:
+                await event.edit(f"{text}\n\n{filled}{empty} {step}%")
+            except Exception:  # noqa: BLE001 - an edited-away message is fine
+                logger.debug("Update progress edit failed", exc_info=True)
+                break
+            await asyncio.sleep(0.22)
+        url = getattr(self, "_update_url", None) or updates.download_url(self._settings)
+        try:
+            from telethon import Button
+
+            await event.edit(
+                f"✅ {text}\n\nYuklashga tayyor.",
+                buttons=[Button.url("⬇️ Yangilanishni yuklab olin", url)],
+            )
+        except Exception:  # noqa: BLE001
+            logger.exception("Update link could not be shown")
+
     async def send_progress(self, text: str) -> bool:
         """Send a one-line "what I am doing now" note to the owner.
 
@@ -522,6 +586,10 @@ class TelegramAccount:
             from telethon.tl import types
 
             self._client.add_event_handler(self._handle_incoming, events.NewMessage(incoming=True))
+            self._client.add_event_handler(
+                self._handle_update_callback,
+                events.CallbackQuery(pattern=_UPDATE_CALLBACK_PATTERN),
+            )
             self._client.add_event_handler(
                 self._handle_call_update, events.Raw(types.UpdatePhoneCall)
             )

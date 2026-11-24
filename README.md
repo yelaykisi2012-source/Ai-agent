@@ -413,6 +413,8 @@ This is turn-based, not full-duplex barge-in. The UI and docs say so.
 | GET | `/telegram/status` | Connection state (never session data) |
 | GET/POST | `/control/status`, `/control/stop`, `/control/resume` | Emergency stop |
 | GET | `/dashboard`, `/dashboard/summary` | Dashboard and its data |
+| GET | `/system/updates` | Version, release notes and the download link (every page polls it) |
+| GET | `/system/owner` | What Ksenos learned about its owner (this computer only) |
 
 Example:
 
@@ -421,6 +423,27 @@ Invoke-RestMethod -Method Post http://127.0.0.1:8000/chat `
   -ContentType "application/json" `
   -Body '{"message":"Ertaga soat 8 da meni uyg'"'"'ot"}'
 ```
+
+### Yangilanishlar (updates)
+
+One update centre for the whole system (`updates.py`). `GET /system/updates`
+returns the running version, the release notes and the installer link; the
+site, the dashboard and the messenger read it, so a new release appears without
+pressing F5 — and a page served by a newer build reloads itself with a loading
+screen.
+
+The newest release is published in `data/updates.json` (never in code):
+
+```json
+{"releases": [{"version": "1.2.0", "title": "Tezroq qoʻngʻiroq",
+  "at": "2026-12-01", "items": ["Ovozli javob 30% tezroq"]}]}
+```
+
+When that version is newer than the running build, Ksenos sends the owner one
+Telegram message per version — “Yangilanishni yuklab olin, iltimos” — with a
+**⬇️ Yuklab olish** button. Pressing it plays a short download animation in the
+message and then shows the real installer link (`data/updates_state.json` keeps
+the announced version, so a restart does not repeat it).
 
 ## Computer agent
 
@@ -571,5 +594,7 @@ deletes the original; on any failure the reply says so and the original stays.
   `OPENAI_TTS_MODEL` when it retires.
 - SQLite is fine for one user; moving to PostgreSQL is a `.env` change plus a
   migration pass.
-- Reminder delivery depends on Telegram being connected; otherwise attempts are
-  logged as undelivered and retried honestly.
+- Reminders reach the messenger window without Telegram: the scheduler queues
+  them locally (`data/messenger_inbox.json`) and a «call me» reminder rings in
+  the window when no Telegram account is connected. Telegram, when it is
+  connected, still gets the same message.

@@ -144,6 +144,22 @@
       "foot.note":
         "Shaxsiy AI yordamchi uchun yengil Windows chat. Maʼlumotlaringiz shu kompyuterda qoladi.",
 
+      "nav.updates": "Yangilanishlar",
+      "boot.loading": "Yuklanmoqda…",
+      "upd.label": "Yangilanishlar",
+      "upd.h2a": "Yangi versiya",
+      "upd.h2b": "oʻzi keladi.",
+      "upd.lead": "Sahifa yangilanishlarni oʻzi tekshiradi va koʻrsatadi — F5 bosish shart emas.",
+      "upd.checking": "Tekshirilmoqda…",
+      "upd.offline": "Server javob bermadi — qayta uriniladi",
+      "upd.uptodate": "Eng soʻnggi versiya oʻrnatilgan",
+      "upd.available": "Yangi versiya yuklashga tayyor",
+      "upd.foot": "Roʻyxat har 15 soniyada oʻzi yangilanadi.",
+      "upd.badge": "Eng soʻnggi versiya",
+      "upd.note": "Bitta oʻrnatuvchi fayl — Windows 10 / 11.",
+      "upd.download": "Yangilanishni yuklab olish",
+      "upd.prep": "Yuklanmoqda…",
+
       "dl.preparing": "Fayl tayyorlanmoqda — bir necha soniya…",
       "dl.label": "Yuklab olish",
       "dl.badge": "bepul",
@@ -292,6 +308,22 @@
       "foot.note":
         "Лёгкий Windows-чат для личного ИИ-помощника. Ваши данные остаются на этом компьютере.",
 
+      "nav.updates": "Обновления",
+      "boot.loading": "Загрузка…",
+      "upd.label": "Обновления",
+      "upd.h2a": "Новая версия",
+      "upd.h2b": "приходит сама.",
+      "upd.lead": "Страница сама проверяет обновления и показывает их — F5 нажимать не нужно.",
+      "upd.checking": "Проверяем…",
+      "upd.offline": "Сервер не ответил — попробуем снова",
+      "upd.uptodate": "Установлена последняя версия",
+      "upd.available": "Новая версия готова к загрузке",
+      "upd.foot": "Список обновляется сам каждые 15 секунд.",
+      "upd.badge": "Последняя версия",
+      "upd.note": "Один файл установщика — Windows 10 / 11.",
+      "upd.download": "Скачать обновление",
+      "upd.prep": "Загружаем…",
+
       "dl.preparing": "Готовим файл — пара секунд…",
       "dl.label": "Скачать",
       "dl.badge": "бесплатно",
@@ -439,6 +471,22 @@
 
       "foot.note":
         "A light Windows chat for your personal AI assistant. Your data stays on this computer.",
+
+      "nav.updates": "Updates",
+      "boot.loading": "Loading…",
+      "upd.label": "Updates",
+      "upd.h2a": "A new version",
+      "upd.h2b": "arrives by itself.",
+      "upd.lead": "The page checks for updates on its own and shows them — no need to press F5.",
+      "upd.checking": "Checking…",
+      "upd.offline": "The server did not answer — retrying",
+      "upd.uptodate": "The latest version is installed",
+      "upd.available": "A new version is ready to download",
+      "upd.foot": "The list refreshes itself every 15 seconds.",
+      "upd.badge": "Latest version",
+      "upd.note": "One installer file — Windows 10 / 11.",
+      "upd.download": "Download the update",
+      "upd.prep": "Downloading…",
 
       "dl.preparing": "Preparing the file — a couple of seconds…",
       "dl.label": "Download",

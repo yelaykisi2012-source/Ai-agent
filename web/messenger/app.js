@@ -332,6 +332,184 @@
     "data.summary": "{c} conversations · {m} messages",
   });
 
+  Object.assign(STRINGS.uz, {
+    "rail.searchAria": "Tarixdan qidirish",
+    "rail.collapse": "Yon panelni yopish",
+    "call.start": "Qoʻngʻiroq",
+    "call.connecting": "Ulanmoqda…",
+    "call.live": "Qoʻngʻiroq · {time}",
+    "call.listening": "Tinglayapman…",
+    "call.thinking": "Javob tayyorlanmoqda…",
+    "call.speaking": "Ksenos gapirayapti…",
+    "call.hint": "Mikrofonni bosing va gapiring — javob ovoz bilan keladi.",
+    "call.noMic": "Bu brauzer mikrofonni tushunmaydi. Xabarni yozib yuboring.",
+    "call.denied": "Mikrofon ruxsati berilmagan. Manzil yonidagi mikrofon belgisidan ruxsat bering, keyin qayta bosing.",
+    "call.allow": "Mikrofon ruxsatini tasdiqlang…",
+    "call.mic": "Mikrofon",
+    "call.end": "Tugatish",
+    "call.ended": "Qoʻngʻiroq tugadi.",
+    "call.empty": "Hech narsa eshitilmadi.",
+  });
+
+  Object.assign(STRINGS.ru, {
+    "rail.searchAria": "Поиск по истории",
+    "rail.collapse": "Скрыть боковую панель",
+    "call.start": "Звонок",
+    "call.connecting": "Соединяем…",
+    "call.live": "Звонок · {time}",
+    "call.listening": "Слушаю…",
+    "call.thinking": "Готовлю ответ…",
+    "call.speaking": "Ksenos говорит…",
+    "call.hint": "Нажмите микрофон и говорите — ответ придёт голосом.",
+    "call.noMic": "Этот браузер не понимает микрофон. Напишите сообщение.",
+    "call.denied": "Доступ к микрофону не дан. Разрешите его в значке микрофона рядом с адресом и нажмите снова.",
+    "call.allow": "Подтвердите доступ к микрофону…",
+    "call.mic": "Микрофон",
+    "call.end": "Завершить",
+    "call.ended": "Звонок завершён.",
+    "call.empty": "Ничего не услышано.",
+  });
+
+  Object.assign(STRINGS.en, {
+    "rail.searchAria": "Search history",
+    "rail.collapse": "Hide sidebar",
+    "call.start": "Call",
+    "call.connecting": "Connecting…",
+    "call.live": "Call · {time}",
+    "call.listening": "Listening…",
+    "call.thinking": "Preparing a reply…",
+    "call.speaking": "Ksenos is speaking…",
+    "call.hint": "Press the microphone and speak — the reply comes back as voice.",
+    "call.noMic": "This browser cannot listen to a microphone. Type the message instead.",
+    "call.denied": "Microphone access was refused. Allow it from the microphone icon next to the address, then press again.",
+    "call.allow": "Allow the microphone prompt…",
+    "call.mic": "Microphone",
+    "call.end": "End",
+    "call.ended": "Call ended.",
+    "call.empty": "Nothing was heard.",
+  });
+
+  /* Another device, reminders in the window and the call fallbacks. */
+  Object.assign(STRINGS.uz, {
+    "gate.pairLink": "Boshqa qurilmadan ulanish",
+    "gate.pairCode": "Ulash kodi",
+    "gate.pairName": "Qurilma nomi",
+    "gate.pairNamePlace": "Masalan: Noutbuk",
+    "gate.pairGo": "Ulash",
+    "gate.pairCancel": "Bekor qilish",
+    "gate.pairHint": "Kodni shu kompyuterda: Sozlamalar → Ulangan qurilmalar boʻlimidan oling.",
+    "gate.pairWrong": "Kod notoʻgʻri yoki eskirgan. Yangi kod oling.",
+    "gate.pairOk": "Ulandi. Ochilmoqda…",
+    "gate.pairOffline": "Server javob bermayapti. Manzilni tekshiring.",
+    "set.devices": "Ulangan qurilmalar",
+    "set.devicesLead": "Boshqa kompyuter yoki telefonda shu manzilni ochib, ulash kodini kiriting — suhbat, tarix va sozlamalar bir xil boʻladi.",
+    "set.devAddress": "Manzil",
+    "set.devCopy": "Nusxalash",
+    "set.devCopied": "Manzil nusxalandi.",
+    "set.devAdd": "Yangi qurilma qoʻshish",
+    "set.devAddNote": "Kod 10 daqiqa amal qiladi va bir marta ishlaydi.",
+    "set.devCode": "Kod olish",
+    "set.devYourCode": "Ulash kodi",
+    "set.devLeft": "{m} daqiqa amal qiladi",
+    "set.devEmpty": "Hali boshqa qurilma ulanmagan.",
+    "set.devRemove": "Uzish",
+    "set.devThis": "shu qurilma",
+    "set.devSeen": "Oxirgi marta: {when}",
+    "set.devLanOn": "Shu manzilni boshqa qurilma brauzerida oching. Windows Firewall soʻrasa — ruxsat bering.",
+    "set.devLanOff": "Server hozir faqat shu kompyuterni koʻradi. run.bat ni ishga tushiring — u tarmoqqa ochadi.",
+    "call.typePlace": "Yozib yuborish…",
+    "call.send": "Yuborish",
+    "call.heard": "Siz: {text}",
+    "call.reply": "Ksenos: {text}",
+    "call.listeningNow": "Tinglayapman… gapiring",
+    "call.noDevice": "Mikrofon topilmadi.",
+    "call.network": "Nutq xizmatiga internet kerak.",
+    "call.micFailed": "Mikrofon xatosi: {code}",
+    "call.langFallback": "Bu tizim {lang} tilini tushunmaydi — davom etaman.",
+    "call.reminder": "Eslatma: {text}",
+    "call.ringing": "Qoʻngʻiroq vaqti keldi",
+  });
+
+  Object.assign(STRINGS.ru, {
+    "gate.pairLink": "Подключиться с другого устройства",
+    "gate.pairCode": "Код подключения",
+    "gate.pairName": "Название устройства",
+    "gate.pairNamePlace": "Например: Ноутбук",
+    "gate.pairGo": "Подключить",
+    "gate.pairCancel": "Отмена",
+    "gate.pairHint": "Код создаётся на этом компьютере: Настройки → Подключённые устройства.",
+    "gate.pairWrong": "Код неверный или истёк. Создайте новый.",
+    "gate.pairOk": "Подключено. Открываем…",
+    "gate.pairOffline": "Сервер не отвечает. Проверьте адрес.",
+    "set.devices": "Подключённые устройства",
+    "set.devicesLead": "Откройте этот адрес на другом компьютере или телефоне и введите код подключения — чат, история и настройки будут общими.",
+    "set.devAddress": "Адрес",
+    "set.devCopy": "Копировать",
+    "set.devCopied": "Адрес скопирован.",
+    "set.devAdd": "Добавить устройство",
+    "set.devAddNote": "Код действует 10 минут и работает один раз.",
+    "set.devCode": "Получить код",
+    "set.devYourCode": "Код подключения",
+    "set.devLeft": "Действует ещё {m} мин.",
+    "set.devEmpty": "Пока нет подключённых устройств.",
+    "set.devRemove": "Отключить",
+    "set.devThis": "это устройство",
+    "set.devSeen": "Последний раз: {when}",
+    "set.devLanOn": "Откройте этот адрес в браузере другого устройства. Если Windows Firewall спросит — разрешите.",
+    "set.devLanOff": "Сервер виден только на этом компьютере. Запустите run.bat — он открывает доступ по сети.",
+    "call.typePlace": "Написать…",
+    "call.send": "Отправить",
+    "call.heard": "Вы: {text}",
+    "call.reply": "Ksenos: {text}",
+    "call.listeningNow": "Слушаю… говорите",
+    "call.noDevice": "Микрофон не найден.",
+    "call.network": "Распознаванию нужен интернет.",
+    "call.micFailed": "Ошибка микрофона: {code}",
+    "call.langFallback": "Эта система не понимает {lang} — продолжаю.",
+    "call.reminder": "Напоминание: {text}",
+    "call.ringing": "Время звонка",
+  });
+
+  Object.assign(STRINGS.en, {
+    "gate.pairLink": "Connect from another device",
+    "gate.pairCode": "Pairing code",
+    "gate.pairName": "Device name",
+    "gate.pairNamePlace": "For example: Laptop",
+    "gate.pairGo": "Connect",
+    "gate.pairCancel": "Cancel",
+    "gate.pairHint": "Create the code on this computer: Settings → Connected devices.",
+    "gate.pairWrong": "The code is wrong or expired. Create a new one.",
+    "gate.pairOk": "Connected. Opening…",
+    "gate.pairOffline": "The server does not answer. Check the address.",
+    "set.devices": "Connected devices",
+    "set.devicesLead": "Open this address on another computer or phone and enter a pairing code — chat, history and settings stay the same.",
+    "set.devAddress": "Address",
+    "set.devCopy": "Copy",
+    "set.devCopied": "Address copied.",
+    "set.devAdd": "Add a device",
+    "set.devAddNote": "The code works for 10 minutes and only once.",
+    "set.devCode": "Get a code",
+    "set.devYourCode": "Pairing code",
+    "set.devLeft": "Valid for {m} more min",
+    "set.devEmpty": "No other device is connected yet.",
+    "set.devRemove": "Disconnect",
+    "set.devThis": "this device",
+    "set.devSeen": "Last seen: {when}",
+    "set.devLanOn": "Open this address in another device's browser. If Windows Firewall asks, allow it.",
+    "set.devLanOff": "The server only listens on this computer. Start run.bat — it opens the network address.",
+    "call.typePlace": "Type a message…",
+    "call.send": "Send",
+    "call.heard": "You: {text}",
+    "call.reply": "Ksenos: {text}",
+    "call.listeningNow": "Listening… speak now",
+    "call.noDevice": "No microphone was found.",
+    "call.network": "Speech recognition needs the internet.",
+    "call.micFailed": "Microphone error: {code}",
+    "call.langFallback": "This system has no {lang} recogniser — continuing.",
+    "call.reminder": "Reminder: {text}",
+    "call.ringing": "Time for the call",
+  });
+
   const $ = (selector) => document.querySelector(selector);
   const $$ = (selector) => Array.from(document.querySelectorAll(selector));
   const STORE_KEY = "ksenus-messenger-lang";
@@ -349,6 +527,13 @@
     settings: null,
     pinVisible: false,
     lockTimer: null,
+    devices: [],
+    devUrls: [],
+    devLanHost: "127.0.0.1",
+    inboxTimer: null,
+    inboxReady: false,
+    pairExpires: 0,
+    pairTimer: null,
   };
 
   /* ---------- language ---------- */
@@ -523,6 +708,8 @@
     const sub = $("#gateSub");
     const account = $("#gateAccount");
     if (account) account.hidden = state.pinSet && state.stage === "unlock";
+    const pairLink = $("#gatePairOpen");
+    if (pairLink) pairLink.hidden = state.stage !== "unlock";
     if (state.stage === "unlock" && !state.pinSet) {
       title.textContent = t("gate.title");
       sub.textContent = t("gate.noAccount");
@@ -548,6 +735,8 @@
     paintDots();
     gateTexts();
     gateMessage("");
+    const pairForm = $("#gatePair");
+    if (pairForm) pairForm.hidden = true;
     $("#gate").hidden = false;
     $("#app").hidden = true;
   };
@@ -560,6 +749,51 @@
     animateSprite();
     loadHistory();
     loadSettings();
+    startInbox();
+  };
+
+  /* ---------- another device ---------- */
+  const openPairForm = (show) => {
+    const form = $("#gatePair");
+    if (form) form.hidden = !show;
+    const field = $("#pairCode");
+    if (show) {
+      window.setTimeout(() => field?.focus(), 40);
+    } else if (field) {
+      field.value = "";
+    }
+  };
+
+  const pairThisDevice = async () => {
+    const code = ($("#pairCode")?.value || "").replace(/\D/g, "");
+    const name = ($("#pairName")?.value || "").trim() || "Qurilma";
+    if (code.length !== 6) {
+      gateMessage(t("gate.pairWrong"), "error");
+      return;
+    }
+    try {
+      const response = await fetch(`${API}/devices/pair`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, name }),
+      });
+      if (!response.ok) {
+        gateMessage(
+          response.status === 401 ? t("gate.pairWrong") : t("gate.pairOffline"),
+          "error"
+        );
+        return;
+      }
+      gateMessage(t("gate.pairOk"), "ok");
+      openPairForm(false);
+      const status = await fetch(`${API}/status`, { credentials: "same-origin" });
+      const data = await status.json().catch(() => ({}));
+      state.pinSet = Boolean(data.pin_set);
+      openApp();
+    } catch (error) {
+      gateMessage(t("gate.pairOffline"), "error");
+    }
   };
 
   const submitPin = async () => {
@@ -830,6 +1064,7 @@
     if (!message || state.sending) return;
 
     state.sending = true;
+    let replyText = null;
     if (sendButton) sendButton.disabled = true;
     if ($("#emptyState")) {
       thread.innerHTML = "";
@@ -858,7 +1093,8 @@
       const data = await response.json();
       state.activeId = data.conversation_id || state.activeId;
       $$(".msg.pending").forEach((bubble) => bubble.classList.remove("pending"));
-      appendMessage("agent", data.reply || "…");
+      replyText = data.reply || "";
+      appendMessage("agent", replyText || "…");
       await loadHistory($("#searchInput")?.value || "");
     } catch (error) {
       $$(".msg.pending").forEach((bubble) => bubble.classList.remove("pending"));
@@ -872,6 +1108,266 @@
       scrollDown();
       input?.focus();
     }
+
+    return replyText;
+  };
+
+  /* ---------- call ---------- */
+  const call = {
+    active: false,
+    seconds: 0,
+    timer: null,
+    recognition: null,
+    listening: false,
+    wantListen: false,
+    lang: "",
+  };
+
+  const callLine = (role, text) => {
+    const log = $("#callLog");
+    if (!log || !text) return;
+    const line = document.createElement("div");
+    line.className = `call-line${role === "out" ? " out" : role === "system" ? " system" : ""}`;
+    line.textContent = text;
+    log.appendChild(line);
+    log.scrollTop = log.scrollHeight;
+  };
+
+  /* The reply is spoken in a voice the computer actually has. A missing
+     uz-UZ voice used to make speak() silent, so the call looked one-way. */
+  const voiceFor = (langs) => {
+    if (!("speechSynthesis" in window)) return null;
+    const voices = window.speechSynthesis.getVoices() || [];
+    for (const lang of langs) {
+      const exact = voices.find((voice) => voice.lang && voice.lang.toLowerCase() === lang.toLowerCase());
+      if (exact) return exact;
+    }
+    for (const lang of langs) {
+      const base = lang.slice(0, 2).toLowerCase();
+      const near = voices.find((voice) => voice.lang && voice.lang.toLowerCase().startsWith(base));
+      if (near) return near;
+    }
+    return null;
+  };
+
+  const speechLang = () => (state.lang === "uz" ? "uz-UZ" : state.lang === "ru" ? "ru-RU" : "en-US");
+
+  if ("speechSynthesis" in window) {
+    // Chromium fills the voice list asynchronously; asking early fills the cache.
+    window.speechSynthesis.getVoices();
+    window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+  }
+
+  const callClock = (total) => {
+    const minutes = String(Math.floor(total / 60)).padStart(2, "0");
+    const rest = String(total % 60).padStart(2, "0");
+    return `${minutes}:${rest}`;
+  };
+
+  const callStatus = (text) => {
+    const node = $("#callStatus");
+    if (node) node.textContent = text;
+  };
+
+  const callHint = (text) => {
+    const node = $("#callHint");
+    if (node) node.textContent = text;
+  };
+
+  const speak = (text) => {
+    if (!text || !("speechSynthesis" in window)) return;
+    try {
+      window.speechSynthesis.cancel();
+      const saying = new SpeechSynthesisUtterance(text);
+      const lang = speechLang();
+      const voice = voiceFor(
+        state.lang === "uz" ? [lang, "ru-RU", "en-US"] : state.lang === "ru" ? [lang, "en-US"] : [lang]
+      );
+      saying.lang = voice ? voice.lang : lang;
+      if (voice) saying.voice = voice;
+      saying.rate = 1;
+      saying.onstart = () => call.active && callStatus(t("call.speaking"));
+      saying.onend = () => {
+        if (!call.active) return;
+        callStatus(t("call.live", { time: callClock(call.seconds) }));
+        if (call.wantListen) startRecognition();
+      };
+      window.speechSynthesis.speak(saying);
+    } catch (error) {
+      /* a silent reply still shows in the thread and the call log */
+    }
+  };
+
+  const stopSpeaking = () => {
+    try {
+      window.speechSynthesis.cancel();
+    } catch (error) {
+      /* nothing was speaking */
+    }
+  };
+
+  const speechRecognition = () =>
+    window.SpeechRecognition || window.webkitSpeechRecognition || null;
+
+  const stopListening = (keepWish = false) => {
+    if (!keepWish) call.wantListen = false;
+    if (call.recognition && call.listening) {
+      try {
+        call.recognition.stop();
+      } catch (error) {
+        /* already stopped */
+      }
+    }
+    call.listening = false;
+    $("#callMic")?.classList.remove("live");
+  };
+
+  const micError = (code) => {
+    if (code === "not-allowed" || code === "service-not-allowed") return t("call.denied");
+    if (code === "audio-capture") return t("call.noDevice");
+    if (code === "network") return t("call.network");
+    if (code === "no-speech") return t("call.empty");
+    return t("call.micFailed", { code: code || "?" });
+  };
+
+  const handleHeard = async (heard) => {
+    callLine("out", t("call.heard", { text: heard }));
+    callHint("");
+    callStatus(t("call.thinking"));
+    const reply = await send(heard);
+    if (!call.active) return;
+    if (reply) {
+      callLine("in", t("call.reply", { text: reply }));
+      speak(reply);
+    } else {
+      callStatus(t("call.live", { time: callClock(call.seconds) }));
+    }
+  };
+
+  function startRecognition() {
+    const Recognition = speechRecognition();
+    if (!Recognition || !call.active) return;
+    if (!call.recognition) {
+      call.recognition = new Recognition();
+      call.recognition.continuous = true;
+      call.recognition.interimResults = true;
+      call.recognition.maxAlternatives = 1;
+
+      call.recognition.onresult = (event) => {
+        let interim = "";
+        let final = "";
+        for (let index = event.resultIndex || 0; index < event.results.length; index += 1) {
+          const chunk = event.results[index][0].transcript || "";
+          if (event.results[index].isFinal) final += chunk;
+          else interim += chunk;
+        }
+        if (interim.trim()) callHint(interim.trim());
+        if (!final.trim()) return;
+        stopListening();
+        handleHeard(final.trim());
+      };
+
+      call.recognition.onerror = (event) => {
+        const code = event.error || "";
+        const restart = call.wantListen && call.active;
+        call.listening = false;
+        $("#callMic")?.classList.remove("live");
+        if (!call.active) return;
+        if (code === "no-speech" || code === "aborted") {
+          if (restart) window.setTimeout(startRecognition, 400);
+          return;
+        }
+        if (code === "language-not-supported") {
+          // Some builds have no uz-UZ recogniser; keep the call usable.
+          call.lang = call.lang ? "" : state.lang === "uz" ? "ru-RU" : "en-US";
+          callHint(t("call.langFallback", { lang: call.lang || speechLang() }));
+          if (restart) window.setTimeout(startRecognition, 300);
+          return;
+        }
+        call.wantListen = false;
+        callHint(micError(code));
+      };
+
+      call.recognition.onend = () => {
+        call.listening = false;
+        $("#callMic")?.classList.remove("live");
+        if (call.wantListen && call.active) window.setTimeout(startRecognition, 350);
+      };
+    }
+
+    stopSpeaking();
+    call.recognition.lang = call.lang || speechLang();
+    try {
+      call.recognition.start();
+      call.listening = true;
+      $("#callMic")?.classList.add("live");
+      callStatus(t("call.listening"));
+      callHint(t("call.listeningNow"));
+    } catch (error) {
+      /* start() twice in a row throws; the running session is enough */
+    }
+  }
+
+  const listen = () => {
+    const Recognition = speechRecognition();
+    if (!Recognition) {
+      callHint(t("call.noMic"));
+      return;
+    }
+    call.wantListen = true;
+    // Trigger the browser's microphone prompt, but never wait for it: in an
+    // app window the promise can stay pending, and then the button used to
+    // look dead. Recognition reports the real error if permission is refused.
+    try {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices
+          .getUserMedia({ audio: true })
+          .then((stream) => stream.getTracks().forEach((track) => track.stop()))
+          .catch(() => {});
+      }
+    } catch (error) {
+      /* recognition will say what went wrong */
+    }
+    callHint(t("call.allow"));
+    startRecognition();
+  };
+
+  const startCall = () => {
+    const sheet = $("#call");
+    if (!sheet || call.active) return;
+    call.active = true;
+    call.seconds = 0;
+    call.wantListen = false;
+    call.lang = "";
+    sheet.hidden = false;
+    const log = $("#callLog");
+    if (log) log.innerHTML = "";
+    callStatus(t("call.connecting"));
+    callHint(speechRecognition() ? t("call.hint") : t("call.noMic"));
+    const mic = $("#callMic");
+    if (mic) mic.disabled = false;
+
+    window.setTimeout(() => {
+      if (!call.active) return;
+      callStatus(t("call.live", { time: "00:00" }));
+      call.timer = window.setInterval(() => {
+        call.seconds += 1;
+        if (!call.listening) callStatus(t("call.live", { time: callClock(call.seconds) }));
+      }, 1000);
+    }, 700);
+  };
+
+  const endCall = () => {
+    if (!call.active) return;
+    call.active = false;
+    call.wantListen = false;
+    window.clearInterval(call.timer);
+    call.timer = null;
+    stopListening();
+    stopSpeaking();
+    const sheet = $("#call");
+    if (sheet) sheet.hidden = true;
+    toast(t("call.ended"));
   };
 
   /* ---------- rail (narrow windows) ---------- */
@@ -973,8 +1469,95 @@
       showGate("unlock");
     });
 
-    $("#railToggle")?.addEventListener("click", toggleRail);
+    $("#railToggle")?.addEventListener("click", () => {
+      if ($("#app")?.classList.contains("rail-collapsed")) {
+        setRailCollapsed(false);
+        return;
+      }
+      toggleRail();
+    });
     $("#scrim")?.addEventListener("click", closeRail);
+
+    $("#railCollapse")?.addEventListener("click", () => setRailCollapsed(true));
+
+    $("#railSearch")?.addEventListener("click", () => {
+      const row = $("#searchRow");
+      const button = $("#railSearch");
+      if (!row) return;
+      const show = row.hidden;
+      row.hidden = !show;
+      button?.classList.toggle("active", show);
+      if (show) $("#searchInput")?.focus();
+      else if ($("#searchInput")) $("#searchInput").blur();
+    });
+
+    $("#meBtn")?.addEventListener("click", openSettings);
+
+    $("#callBtn")?.addEventListener("click", startCall);
+    $("#callEnd")?.addEventListener("click", endCall);
+    $("#callMic")?.addEventListener("click", () => {
+      if (!call.active) return;
+      if (call.listening || call.wantListen) {
+        stopListening();
+        callHint(t("call.hint"));
+        callStatus(t("call.live", { time: callClock(call.seconds) }));
+        return;
+      }
+      listen();
+    });
+
+    $("#callForm")?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const field = $("#callInput");
+      const message = (field?.value || "").trim();
+      if (!message || !call.active) return;
+      if (field) field.value = "";
+      stopListening();
+      stopSpeaking();
+      callLine("out", t("call.heard", { text: message }));
+      callStatus(t("call.thinking"));
+      const reply = await send(message);
+      if (!call.active) return;
+      if (reply) {
+        callLine("in", t("call.reply", { text: reply }));
+        speak(reply);
+      } else {
+        callStatus(t("call.live", { time: callClock(call.seconds) }));
+      }
+    });
+
+    /* --- another device --- */
+    $("#gatePairOpen")?.addEventListener("click", () => openPairForm($("#gatePair")?.hidden !== false));
+    $("#pairCancel")?.addEventListener("click", () => openPairForm(false));
+    $("#pairGo")?.addEventListener("click", pairThisDevice);
+    $("#pairCode")?.addEventListener("input", (event) => {
+      event.target.value = event.target.value.replace(/\D/g, "").slice(0, 6);
+    });
+    $("#pairCode")?.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        pairThisDevice();
+      }
+    });
+
+    $("#devCode")?.addEventListener("click", requestPairCode);
+    $("#devCopy")?.addEventListener("click", async () => {
+      const text = state.devUrls[0] || "";
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        toast(t("set.devCopied"));
+      } catch (error) {
+        toast(text);
+      }
+    });
+    $("#devList")?.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-device]");
+      if (button) removeDevice(button.dataset.device);
+    });
+    $("#call")?.addEventListener("click", (event) => {
+      if (event.target === $("#call")) endCall();
+    });
 
     /* --- settings --- */
     $("#settingsBtn")?.addEventListener("click", openSettings);
@@ -983,7 +1566,12 @@
       if (event.target === $("#settings")) closeSettings();
     });
     document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && !$("#settings").hidden) closeSettings();
+      if (event.key !== "Escape") return;
+      if ($("#call") && !$("#call").hidden) {
+        endCall();
+        return;
+      }
+      if ($("#settings") && !$("#settings").hidden) closeSettings();
     });
 
     $$("#themeGrid .theme").forEach((button) => {
@@ -1181,6 +1769,42 @@
     if (keyCount) {
       keyCount.textContent = t("set.keys", { n: data.keys ? data.keys.count : 0 });
     }
+
+    paintIdentity(name, data.avatar);
+  };
+
+  /* The same name and picture appear in the rail footer, the chat head
+     and the call screen, so they are painted from one place. */
+  const paintIdentity = (name, avatar) => {
+    const initial = (name[0] || "K").toUpperCase();
+    const src = avatar ? `${API}/avatar?v=${encodeURIComponent(avatar)}` : "";
+
+    const pairs = [
+      ["#meImg", "#meInitial"],
+      ["#callImg", "#callInitial"],
+    ];
+    pairs.forEach(([imgId, initialId]) => {
+      const img = $(imgId);
+      const letter = $(initialId);
+      if (img) {
+        if (src) {
+          img.src = src;
+          img.hidden = false;
+          if (letter) letter.hidden = true;
+        } else {
+          img.hidden = true;
+          if (letter) letter.hidden = false;
+        }
+      }
+      if (letter) letter.textContent = initial;
+    });
+
+    const meName = $("#meName");
+    if (meName) meName.textContent = name;
+    const callName = $("#callName");
+    if (callName) callName.textContent = name;
+    const chatName = $("#chatName");
+    if (chatName) chatName.textContent = name;
   };
 
   const loadSettings = async () => {
@@ -1218,6 +1842,7 @@
       pane.classList.toggle("active", pane.dataset.pane === name);
     });
     $(".sheet-content")?.scrollTo({ top: 0, behavior: "smooth" });
+    if (name === "devices") loadDevices();
   };
 
   const openSettings = () => {
@@ -1325,11 +1950,185 @@
     state.lockTimer = window.setInterval(tick, 1000);
   };
 
+  /* ---------- reminders that fire while the window is open ---------- */
+  const INBOX_KEY = "ksenos-inbox-last";
+
+  const inboxNumber = () => {
+    try {
+      return Number(window.localStorage.getItem(INBOX_KEY) || 0) || 0;
+    } catch (error) {
+      return 0;
+    }
+  };
+
+  const rememberInbox = (value) => {
+    try {
+      window.localStorage.setItem(INBOX_KEY, String(value));
+    } catch (error) {
+      /* private mode: the next poll may repeat one notice */
+    }
+  };
+
+  const showReminder = (item) => {
+    const text = (item && item.text) || "";
+    if (!text) return;
+    if (item.kind === "call") {
+      toast(t("call.ringing"));
+      if (!call.active) startCall();
+      window.setTimeout(() => {
+        callLine("system", t("call.ringing"));
+        callLine("system", text);
+        speak(text);
+      }, 800);
+      return;
+    }
+    if ($("#emptyState")) {
+      thread.innerHTML = "";
+      renderedDay = null;
+    }
+    appendMessage("agent", `🔔 ${text}`);
+    toast(text.length > 80 ? `${text.slice(0, 77)}…` : text);
+    if (!document.hidden) speak(text);
+  };
+
+  const pollInbox = async () => {
+    if (!state.unlocked) return;
+    try {
+      const response = await api(`/inbox?after=${inboxNumber()}`);
+      if (!response.ok) return;
+      const data = await response.json();
+      const items = data.items || [];
+      // On the first poll only the newest few are shown: older ones were
+      // already missed and must not bury the conversation in notices.
+      (state.inboxReady ? items : items.slice(-3)).forEach(showReminder);
+      state.inboxReady = true;
+      if (data.last) rememberInbox(data.last);
+    } catch (error) {
+      /* a missed poll is retried on the next tick */
+    }
+  };
+
+  const startInbox = () => {
+    if (state.inboxTimer) return;
+    pollInbox();
+    state.inboxTimer = window.setInterval(pollInbox, 15000);
+  };
+
+  /* ---------- connected devices ---------- */
+  const paintDevices = () => {
+    const urls = $("#devUrls");
+    if (urls) urls.textContent = state.devUrls.length ? state.devUrls.join("  ·  ") : "—";
+
+    const note = $("#devLanNote");
+    if (note) {
+      const local = !state.devLanHost || state.devLanHost === "127.0.0.1" || state.devLanHost === "localhost" || state.devLanHost === "::1";
+      note.textContent = local ? t("set.devLanOff") : t("set.devLanOn");
+    }
+
+    const list = $("#devList");
+    if (!list) return;
+    if (!state.devices.length) {
+      list.innerHTML = `<div class="dev-empty">${escapeHtml(t("set.devEmpty"))}</div>`;
+      return;
+    }
+    list.innerHTML = state.devices
+      .map((device) => {
+        const seen = device.last_seen
+          ? `${shortDate(device.last_seen)} ${clock(device.last_seen)}`
+          : "—";
+        const name = `${device.name || "Qurilma"}${device.current ? ` · ${t("set.devThis")}` : ""}`;
+        return `
+          <div class="dev-item">
+            <span class="dev-id">
+              <b>${escapeHtml(name)}</b>
+              <small>${escapeHtml(t("set.devSeen", { when: seen }))}</small>
+            </span>
+            <button class="btn-line danger" type="button" data-device="${escapeHtml(device.id)}">${escapeHtml(t("set.devRemove"))}</button>
+          </div>`;
+      })
+      .join("");
+  };
+
+  const loadDevices = async () => {
+    try {
+      const response = await api("/devices");
+      if (!response.ok) return;
+      const data = await response.json();
+      state.devUrls = data.urls || [];
+      state.devLanHost = data.lan_host || "127.0.0.1";
+      state.devices = data.devices || [];
+      paintDevices();
+    } catch (error) {
+      /* the pane simply stays as it was */
+    }
+  };
+
+  const requestPairCode = async () => {
+    try {
+      const response = await api("/devices/code", { method: "POST" });
+      if (!response.ok) throw new Error("code");
+      const data = await response.json();
+      if (data.urls && data.urls.length) state.devUrls = data.urls;
+      if (data.lan_host) state.devLanHost = data.lan_host;
+      paintDevices();
+
+      const number = $("#pairNumber");
+      if (number) number.textContent = data.code || "------";
+      const box = $("#pairBox");
+      if (box) box.hidden = false;
+      state.pairExpires = Date.now() + Number(data.expires_in || 600) * 1000;
+
+      window.clearInterval(state.pairTimer);
+      const tick = () => {
+        const left = Math.max(0, Math.round((state.pairExpires - Date.now()) / 1000));
+        const label = $("#pairLeft");
+        if (label) label.textContent = left ? t("set.devLeft", { m: Math.ceil(left / 60) }) : t("gate.pairWrong");
+        if (!left) {
+          window.clearInterval(state.pairTimer);
+          state.pairTimer = null;
+          if (box) box.hidden = true;
+        }
+      };
+      tick();
+      state.pairTimer = window.setInterval(tick, 5000);
+    } catch (error) {
+      toast(t("toast.failed"));
+    }
+  };
+
+  const removeDevice = async (id) => {
+    try {
+      const response = await api(`/devices/${encodeURIComponent(id)}`, { method: "DELETE" });
+      if (!response.ok) throw new Error("device");
+      await loadDevices();
+    } catch (error) {
+      toast(t("toast.failed"));
+    }
+  };
+
   /* ---------- boot ---------- */
+  const setRailCollapsed = (collapsed) => {
+    $("#app")?.classList.toggle("rail-collapsed", collapsed);
+    try {
+      window.localStorage.setItem("ksenos-rail-collapsed", collapsed ? "1" : "0");
+    } catch (error) {
+      /* private mode */
+    }
+  };
+
+  const storedRail = () => {
+    try {
+      return window.localStorage.getItem("ksenos-rail-collapsed") === "1";
+    } catch (error) {
+      return false;
+    }
+  };
+
   const boot = async () => {
     state.lang = detectLang();
     applyLanguage();
     applyTheme(storedTheme());
+    setRailCollapsed(storedRail());
     bind();
 
     try {
@@ -1337,6 +2136,8 @@
       if (!response.ok) throw new Error("status");
       const data = await response.json();
       state.pinSet = Boolean(data.pin_set);
+      const version = $("#aboutVersion");
+      if (version && data.version) version.textContent = data.version;
       if (data.lock_seconds) startLockout(data.lock_seconds);
       if (data.unlocked) {
         openApp();

@@ -20,7 +20,7 @@ from tasks.scheduler import AgentScheduler, as_utc
 
 logger = logging.getLogger(__name__)
 
-Notifier = Callable[[str], Awaitable[bool]]
+Notifier = Callable[..., Awaitable[bool]]
 ExhaustedHook = Callable[[Reminder], None]
 #: Writes the message to send for a reminder, or None to stay silent.
 Composer = Callable[[Reminder], Awaitable[str | None]]
@@ -220,7 +220,7 @@ class ReminderService:
 
         delivered = False
         try:
-            delivered = await self._notifier(text)
+            delivered = await self._notify(text, reminder_id)
         except Exception:  # noqa: BLE001 - a notifier must never crash the scheduler
             logger.exception("Notifier failed for reminder %s", reminder_id)
 
@@ -255,6 +255,17 @@ class ReminderService:
 
         # Not delivered, or delivered but unacknowledged: try again.
         self._scheduler.schedule_retry(reminder_id, snapshot.interval_minutes)
+
+    async def _notify(self, text: str, reminder_id: int) -> bool:
+        """Send one line; a notifier that knows the id gets it as well.
+
+        The messenger keeps the id so it can acknowledge the reminder when the
+        window shows it; a plain notifier (Telegram, tests) takes one argument.
+        """
+        try:
+            return await self._notifier(text, reminder_id=reminder_id)
+        except TypeError:
+            return await self._notifier(text)
 
     def acknowledge(self, reminder_id: int) -> bool:
         """Mark a reminder acknowledged; stops further retries."""

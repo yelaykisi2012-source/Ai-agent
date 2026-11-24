@@ -37,13 +37,15 @@ from fastapi import (
     WebSocket,
     status,
 )
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select, text
 
 import memory
+import owner_profile
 import safety
+import updates
 from brain import BrainError
 from config import PROJECT_ROOT, Settings, get_settings
 from database import (
@@ -96,7 +98,7 @@ from voice.audio import AudioError, ensure_upload, to_ogg_opus
 from voice.realtime import describe_protocol, serve_voice_session
 from voice.speech_engine import VoiceError
 
-__version__ = "0.3.0"
+__version__ = updates.VERSION
 logger = logging.getLogger(__name__)
 
 DASHBOARD_DIR = PROJECT_ROOT / "dashboard"
@@ -331,7 +333,34 @@ def create_app(
             "voice": "/voice/chat",
             "images": "/images/remove-background",
             "companion": "/companion/state",
+            "updates": "/system/updates",
+            "owner": "/system/owner",
         }
+
+    @app.get("/system/updates", include_in_schema=False)
+    def system_updates() -> Response:
+        """The version, what changed, and where the update is downloaded.
+
+        Every Ksenos page polls this. A new release appears without the owner
+        pressing F5, and a page served by a newer build reloads itself.
+        """
+        return JSONResponse(
+            updates.payload(), headers={"Cache-Control": "no-store"}
+        )
+
+    @app.get("/system/owner", include_in_schema=False)
+    def system_owner(request: Request) -> dict[str, Any]:
+        """What Ksenos has learned about its owner.
+
+        Window titles and habits are the owner's own screen, so the answer is
+        for this computer only: any other client gets a 403.
+        """
+        if not _is_loopback(request):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="the owner profile is available on this computer only",
+            )
+        return owner_profile.summary()
 
     @app.get("/health", response_model=HealthResponse, tags=["system"])
     def health() -> HealthResponse:
